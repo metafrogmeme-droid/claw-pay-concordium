@@ -1,0 +1,12 @@
+target/
+node_modules/
+.env*
+*.pem
+*.key
+
+# Wallet exports
+*.export
+*.wallet
+*.wallet.*
+wallet-export*
+*wallet*export*
