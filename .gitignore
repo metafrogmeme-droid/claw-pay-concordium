@@ -1,5 +1,9 @@
 target/
 node_modules/
+concordium-out/
+dist/
+coverage/
+*.tsbuildinfo
 .env*
 *.pem
 *.key
@@ -10,3 +14,4 @@ node_modules/
 *.wallet.*
 wallet-export*
 *wallet*export*
+*.concordiumwallet
