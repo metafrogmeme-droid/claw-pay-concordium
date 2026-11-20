@@ -16,7 +16,48 @@ Limits live in a Rust smart contract (`GuardVault`). The owner alone can change 
 
 ## Status
 
-Bootstrap only. Contracts, client, demo and verifier will land in small draft pull requests. Nothing here is production-ready, and nothing should be pointed at mainnet.
+Early. PR 1 adds the repo layout, CI and threat model v0.1. The vault, client, demo and verifier land in later small draft pull requests. Nothing here is production-ready, and nothing should be pointed at mainnet.
+
+## Layout
+
+| Path | What it holds |
+|---|---|
+| `contracts/guard-vault/` | `GuardVault` Rust contract (`concordium-std`, target `wasm32v1-none`) and its simulated-chain tests |
+| `packages/agent-client/` | TypeScript agent client; for now only the testnet-only network guard |
+| `SCOPE.md` | Scope, architecture and plan of pull requests |
+| `THREAT_MODEL.md` | Trust boundaries, invariants, threats and open decisions |
+
+## Local checks
+
+None of these need keys, funds or a Concordium node.
+
+Rust uses the toolchain pinned in `rust-toolchain.toml` and needs `cargo-concordium` 5.0.0:
+
+```bash
+cargo fmt --all -- --check
+```
+
+```bash
+cargo clippy --workspace --all-targets --locked -- -D warnings
+```
+
+```bash
+(cd contracts/guard-vault && cargo concordium build --out concordium-out/module.wasm.v1)
+```
+
+```bash
+cargo test --workspace --locked
+```
+
+TypeScript needs Node 22 (see `.nvmrc`):
+
+```bash
+npm ci --ignore-scripts
+```
+
+```bash
+npm run lint && npm run typecheck && npm test
+```
 
 ## License
 

@@ -1,0 +1,16 @@
+[workspace]
+members = ["contracts/guard-vault"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+authors = ["HUMANOID-TRADERS"]
+repository = "https://github.com/metafrogmeme-droid/claw-pay-concordium"
+publish = false
+
+[profile.release]
+opt-level = "s"
+codegen-units = 1

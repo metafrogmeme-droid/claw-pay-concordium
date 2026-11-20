@@ -1,0 +1,19 @@
+[package]
+name = "guard-vault"
+description = "GuardVault: on-chain spending limits for an AI agent on Concordium testnet."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+concordium-std = "=11.0.0"
+
+[dev-dependencies]
+concordium-smart-contract-testing = "=5.0.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
