@@ -27,3 +27,77 @@ jobs:
           "$HOME/.local/bin/gitleaks" version
       - name: Run gitleaks
         run: gitleaks detect --source . --verbose --redact
+
+  rust:
+    name: rust (fmt, clippy, test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_CONCORDIUM_VERSION: 5.0.0
+      CARGO_CONCORDIUM_SHA256: 2c35679ba33023a838feaca05d41e6fce8dcb6d7ca48ed7c60a283f832fa94ab
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain from rust-toolchain.toml
+        run: |
+          set -euo pipefail
+          rustup toolchain install
+          rustc --version
+          cargo --version
+          rustup target list --installed
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+      - name: Install cargo-concordium (pinned, checksum verified)
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -sSfL "https://github.com/Concordium/concordium-smart-contract-tools/releases/download/releases%2Fcargo-concordium%2F${CARGO_CONCORDIUM_VERSION}/cargo-concordium-x86_64-unknown-linux-gnu" -o /tmp/cargo-concordium
+          echo "${CARGO_CONCORDIUM_SHA256}  /tmp/cargo-concordium" | sha256sum -c -
+          install -m 0755 /tmp/cargo-concordium "$HOME/.local/bin/cargo-concordium"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/cargo-concordium" concordium --version
+      - name: Fetch dependencies (Cargo.lock must be current)
+        run: cargo fetch --locked
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Build contract module
+        working-directory: contracts/guard-vault
+        run: cargo concordium build --out concordium-out/module.wasm.v1
+      - name: cargo test
+        run: cargo test --workspace --locked
+
+  typescript:
+    name: typescript (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies (no install scripts)
+        run: npm ci --ignore-scripts
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
