@@ -1,0 +1,16 @@
+{
+  "name": "@claw-pay-concordium/agent-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent client for Claw Pay for Concordium. Concordium testnet only.",
+  "license": "MIT",
+  "author": "HUMANOID-TRADERS",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "node --test \"src/**/*.test.ts\""
+  }
+}
