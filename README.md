@@ -16,13 +16,14 @@ Limits live in a Rust smart contract (`GuardVault`). The owner alone can change 
 
 ## Status
 
-Early. PR 1 adds the repo layout, CI and threat model v0.1. The vault, client, demo and verifier land in later small draft pull requests. Nothing here is production-ready, and nothing should be pointed at mainnet.
+In progress. The vault contract enforces caps, owner-only rules, a pause, replay protection, a registry-checked provider allowlist and hash-linked receipts. The verifier, badge check, x402 flow, client and demo land in later small draft pull requests. Nothing here is production-ready, and nothing should be pointed at mainnet.
 
 ## Layout
 
 | Path | What it holds |
 |---|---|
 | `contracts/guard-vault/` | `GuardVault` Rust contract (`concordium-std`, target `wasm32v1-none`) and its simulated-chain tests |
+| `contracts/mock-agent-registry/` | Test-only CIS-8004 Agent Registry mock used by the tests. Never deploy. |
 | `packages/agent-client/` | TypeScript agent client; for now only the testnet-only network guard |
 | `SCOPE.md` | Scope, architecture and plan of pull requests |
 | `THREAT_MODEL.md` | Trust boundaries, invariants, threats and open decisions |
@@ -43,6 +44,10 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 
 ```bash
 (cd contracts/guard-vault && cargo concordium build --out concordium-out/module.wasm.v1)
+```
+
+```bash
+(cd contracts/mock-agent-registry && cargo concordium build --out concordium-out/module.wasm.v1)
 ```
 
 ```bash

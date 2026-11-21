@@ -1,0 +1,16 @@
+[package]
+name = "mock-agent-registry"
+description = "TEST ONLY. A minimal CIS-8004 Agent Registry mock for GuardVault tests. Never deploy."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+concordium-std = "=11.0.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]

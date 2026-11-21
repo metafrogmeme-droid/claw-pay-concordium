@@ -73,9 +73,11 @@ jobs:
         run: cargo fmt --all -- --check
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: Build contract module
-        working-directory: contracts/guard-vault
-        run: cargo concordium build --out concordium-out/module.wasm.v1
+      - name: Build contract modules
+        run: |
+          set -euo pipefail
+          (cd contracts/guard-vault && cargo concordium build --out concordium-out/module.wasm.v1)
+          (cd contracts/mock-agent-registry && cargo concordium build --out concordium-out/module.wasm.v1)
       - name: cargo test
         run: cargo test --workspace --locked
 

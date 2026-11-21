@@ -1160,6 +1160,7 @@ version = "0.1.0"
 dependencies = [
  "concordium-smart-contract-testing",
  "concordium-std",
+ "sha2",
 ]
 
 [[package]]
@@ -1504,6 +1505,13 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "mock-agent-registry"
+version = "0.1.0"
+dependencies = [
+ "concordium-std",
 ]
 
 [[package]]
