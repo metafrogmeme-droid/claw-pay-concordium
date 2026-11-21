@@ -1,0 +1,19 @@
+{
+  "name": "@claw-pay-concordium/verifier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Rebuilds and checks the GuardVault receipt chain from contract events alone. Concordium testnet only.",
+  "license": "MIT",
+  "author": "HUMANOID-TRADERS",
+  "type": "module",
+  "bin": {
+    "claw-pay-verify": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "node --test \"src/**/*.test.ts\""
+  }
+}

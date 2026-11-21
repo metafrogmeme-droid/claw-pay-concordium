@@ -1,16 +1,19 @@
-# Threat model v0.3
+# Threat model v0.4
 
 HUMANOID-TRADERS · RUNECLAW, Patrick Baur, CEO
 
 **Product:** Claw Pay for Concordium
-**Version:** 0.3
+**Version:** 0.4
 **Date:** 21 Nov 2026 (Europe/Amsterdam)
 **Network:** Concordium testnet only. No mainnet, no real funds.
 
-This is a working model for the draft PRs. It will be revised as the verifier, badge check and x402 flow land.
+This is a working model for the draft PRs. It will be revised as the badge check, x402 flow and client land.
 
 ## Changes
 
+- **v0.4 (PR 3b):**
+  - The receipt verifier (`packages/verifier`) re-checks INV-8 off chain, and replays the rules to re-check INV-2 to INV-7 from events alone.
+  - Adds the verifier's limits. Notes that the live export, which reads finalized blocks only, arrives in PR 5.
 - **v0.3 (PR 3a):**
   - Records decisions 5 (check the registry when a provider is added and on every `pay`) and 6 (pay the registry `agent_wallet` only). This closes the registry-timing open decision.
   - INV-7 and the receipt part of INV-8 are now tested. Adds INV-11 (payee).
@@ -68,7 +71,7 @@ Each invariant is covered by contract tests. The names below are the test names 
 | INV-5 | While the vault is paused, `pay` fails. | Tested (`inv5_*`). |
 | INV-6 | Each `nonce` and each `invoice_hash` is accepted at most once. | Tested (`inv6_*`). |
 | INV-7 | `pay` succeeds only for a provider that is allowlisted and, at that moment, Active in the registry with the approved card hash. | Tested (`inv7_*`). |
-| INV-8 | Every successful `pay` logs exactly one `Receipt`. Its hash is the SHA-256 of its body, and its `prev_hash` is the previous receipt's hash. A failed `pay` logs nothing and changes no state. | Tested (`inv8_*`, `receipt_event_layout_is_tag_body_hash`). Off-chain re-check in PR 3b. |
+| INV-8 | Every successful `pay` logs exactly one `Receipt`. Its hash is the SHA-256 of its body, and its `prev_hash` is the previous receipt's hash. A failed `pay` logs nothing and changes no state. | Tested (`inv8_*`, `receipt_event_layout_is_tag_body_hash`). Re-checked off chain by `packages/verifier` against the golden fixture (`golden_fixture_matches_contract`). |
 | INV-9 | `withdraw` is owner-only and pays only the owner's account. | Tested (`inv1_*`, `inv9_*`). |
 | INV-10 | The agent is never the owner, at init or after `set_agent`. | Tested (`inv10_*`). |
 | INV-11 | A payment goes only to the `agent_wallet` that the registry currently reports for the provider. | Tested (`inv11_*`). |
@@ -81,7 +84,7 @@ Each invariant is covered by contract tests. The names below are the test names 
 | Limit bypass | A payment exceeds the per-tx or per-day cap, or ignores a pause. | Caps, allowlist and pause are enforced in the contract, not in the agent. |
 | Replay | A valid `pay` is submitted twice, or an old invoice is reused. | `pay` must use the next `nonce` in sequence and an `invoice_hash` never paid before. Both are checked on chain. Spend-policy, replay-guard and capped-signer logic in the client are a second layer, not the source of truth. |
 | Provider spoofing | Payment is sent to an unapproved or impersonated provider. | Only allowlisted registry agents can be paid. On every payment, the registry must report the agent Active with the approved card hash, and the money goes to its registered wallet. Badge check in PR 4. |
-| Receipt forgery | A fake receipt is presented off chain. | Receipts are contract events. Each hash covers the previous one, and the head is in contract state. The verifier (PR 3b) rebuilds the chain from chain events alone. |
+| Receipt forgery | A fake receipt is presented off chain. | Receipts are contract events. Each hash covers the previous one, and the head is in contract state. `claw-pay-verify` rebuilds the chain from the vault's events alone: it recomputes every hash, follows the links, replays the owner's rules against every payment, and requires the chain to end at the contract's head. A forged chain that is consistent with itself still fails the rule replay or the head check. |
 | Receipt splicing | Receipts from another vault are mixed into this vault's chain. | The vault's own address is part of every hashed body, so foreign receipts fail the hash or link check. |
 | Cap-window boundary | The window is a fixed UTC day (decision 1). A compromised agent spends the full daily cap just before 00:00 UTC and again just after, which is 2× the daily cap within a millisecond. | Accepted and documented. The worst case is bounded at 2× the daily cap across midnight. The test `inv4_midnight_edge_allows_two_caps_within_a_millisecond` shows the edge. Owners should size the daily cap with that in mind. |
 | Amount arithmetic | A running total or cap check overflows and wraps, letting a payment through. | Checked arithmetic on amounts, totals and the nonce. An overflow rejects the call. Unit-tested at `Amount::MAX`. |
@@ -99,7 +102,7 @@ Each invariant is covered by contract tests. The names below are the test names 
 | Supply-chain compromise | A malicious crate or npm package, a tampered tool binary or a compromised CI action runs in the build. | Lockfiles are committed and enforced in CI (`--locked`, `npm ci`). npm install scripts are disabled. Dependencies are few and exactly pinned. CI uses first-party GitHub actions only, read-only permissions and no secrets. `cargo-concordium` is pinned and checked against its sha256. The gitleaks binary is version-pinned but not yet checksum-verified (follow-up). |
 | Secret leakage | A key, seed phrase or wallet export is committed or printed in logs. | gitleaks runs on every push and pull request over the full history. `.gitignore` covers key files and wallet exports. Keys are loaded from environment variables on the operator box only. CI and development environments hold no keys. |
 | Wrong network | The client is pointed at mainnet by mistake. | The client refuses any network other than `testnet` (`assertTestnet`, wired in at start-up in PR 5). Throwaway keys must never be funded on mainnet. |
-| Unfinalized receipts | The verifier counts a receipt from a block that is later dropped. | The verifier reads finalized blocks only. |
+| Unfinalized receipts | The verifier counts a receipt from a block that is later dropped. | The live exporter (PR 5) reads finalized blocks only. The verifier checks whatever events file it is given, so the file must come from a node the reader trusts. |
 | Module provenance | The module deployed on testnet is not the one built from the reviewed commit. | Publish the module reference with the source commit. PR 6 considers a `cargo-concordium` verifiable build on the operator box. |
 
 ## Open decisions
@@ -113,6 +116,15 @@ These are for Patrick, and both are settled in PR 4:
 
 - Whether vault payments fit the standard x402 `exact` scheme is unverified until the PR 4 seller spike.
 - The official CIS-8004 registry address on testnet must be confirmed on the operator box before deploy.
+
+## What the verifier cannot check
+
+`claw-pay-verify` sees only the vault's events. These parts happened on chain inside the vault's own transaction, and the verifier relies on that:
+- the registry's answer at payment time, which the vault checked with `agentOf`,
+- that the payee was the registry's `agent_wallet`, which the vault read in the same call,
+- the CCD transfer itself, which happens in the same transaction as the receipt event, so both happened or neither did.
+
+It also checks only the events file it is given, so where that file came from matters (see unfinalized receipts).
 
 ## Out of scope for this entry
 
