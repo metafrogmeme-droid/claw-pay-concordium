@@ -1,0 +1,24 @@
+{
+  "name": "@claw-pay-concordium/demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Testnet demo: claw-pay-seller (x402 vault-exact seller with an in-process facilitator) and claw-pay-agent (pays through the vault). Concordium testnet only.",
+  "license": "MIT",
+  "author": "HUMANOID-TRADERS",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@claw-pay-concordium/agent-client": "0.1.0",
+    "@claw-pay-concordium/node-adapter": "0.1.0",
+    "@claw-pay-concordium/verifier": "0.1.0",
+    "@claw-pay-concordium/x402-vault": "0.1.0",
+    "@concordium/web-sdk": "12.0.2",
+    "@x402/core": "2.30.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "node --test \"src/**/*.test.ts\""
+  }
+}

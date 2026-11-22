@@ -16,7 +16,7 @@ Limits live in a Rust smart contract (`GuardVault`). The owner alone can change 
 
 ## Status
 
-In progress. The vault contract enforces caps, owner-only rules, a pause, replay protection, a registry-checked provider allowlist and hash-linked receipts. A verifier CLI rebuilds and checks the receipt chain from the vault's events alone. A badge-check tool self-verifies a provider's Agent Card before the owner allowlists it. An x402 scheme, `vault-exact`, lets sellers charge an agent through its vault: the spec, agent client and facilitator are in, tested offline. The agent client pays only when its spend-policy, replay-guard and capped signer all agree, and it keeps a hash-linked local receipt log. A node adapter connects the facilitator and client to a testnet node (refusing any other network), exports the vault's finalized events for the verifier, and reconciles the local log against the chain. An owner CLI runs every owner step on testnet: a dry run by default, sending only with `--send`. The seller demo, testnet runbook and verifier page land in later small draft pull requests. Nothing here is production-ready, and nothing should be pointed at mainnet.
+In progress. The vault contract enforces caps, owner-only rules, a pause, replay protection, a registry-checked provider allowlist and hash-linked receipts. A verifier CLI rebuilds and checks the receipt chain from the vault's events alone. A badge-check tool self-verifies a provider's Agent Card before the owner allowlists it. An x402 scheme, `vault-exact`, lets sellers charge an agent through its vault: the spec, agent client and facilitator are in, tested offline. The agent client pays only when its spend-policy, replay-guard and capped signer all agree, and it keeps a hash-linked local receipt log. A node adapter connects the facilitator and client to a testnet node (refusing any other network), exports the vault's finalized events for the verifier, and reconciles the local log against the chain. An owner CLI runs every owner step on testnet: a dry run by default, sending only with `--send`. A demo x402 seller and agent CLI complete the end-to-end flow, with a step-by-step testnet runbook for the operator box. The verifier page and the path to production land in the last draft pull request. Nothing here is production-ready, and nothing should be pointed at mainnet.
 
 ## Layout
 
@@ -29,8 +29,9 @@ In progress. The vault contract enforces caps, owner-only rules, a pause, replay
 | `packages/badge-check/` | `claw-pay-badge-check`: checks a registry agent is Verified by Concordium before it is allowlisted |
 | `packages/node-adapter/` | Live testnet connection: node guard, vault view, gRPC `VaultChain`/`AgentChain`, `claw-pay-export` for finalized events, and log reconcile |
 | `packages/owner-cli/` | `claw-pay-owner`: the vault owner's testnet CLI (deploy, init, deposit, caps, agent, pause, allowlist, withdraw, view), dry run unless `--send` |
+| `packages/demo/` | Testnet demo: `claw-pay-seller` (x402 seller, invoice book, in-process facilitator) and `claw-pay-agent` |
 | `packages/x402-vault/` | x402 `vault-exact` scheme: agent client and facilitator for payments through `GuardVault` |
-| `docs/` | Specs, starting with the `vault-exact` x402 scheme |
+| `docs/` | The `vault-exact` x402 scheme spec and the testnet demo runbook |
 | `fixtures/` | Golden vault events, vault view, registry replies, `pay` and owner parameters and reject codes, produced by the contract tests and read by the TypeScript tests |
 | `SCOPE.md` | Scope, architecture and plan of pull requests |
 | `THREAT_MODEL.md` | Trust boundaries, invariants, threats and open decisions |
@@ -82,6 +83,10 @@ Check the example registry agent's badge against the example card:
 ```bash
 node packages/badge-check/src/cli.ts fixtures/agent-views.v1.json --token 10 --card fixtures/agent-card.example.json
 ```
+
+## Run the testnet demo
+
+The end-to-end demo runs on the operator box only, against Concordium testnet with throwaway keys. Follow [`docs/testnet-demo.md`](docs/testnet-demo.md).
 
 ## License
 
