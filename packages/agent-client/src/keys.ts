@@ -1,10 +1,12 @@
 /**
- * Loading the agent key on the operator box.
+ * Loading a key on the operator box: the agent key here, and the owner and
+ * sponsor keys in the CLIs, all under the same rules.
  *
- * `CLAW_PAY_AGENT_KEY_FILE` names a Concordium wallet export (JSON). The file
- * must be a regular file owned by the current user with no group or other
- * permissions (mode 600), checked before it is read. The export must be for
- * `testnet`. Error messages never include the file's contents.
+ * An environment variable (for the agent, `CLAW_PAY_AGENT_KEY_FILE`) names a
+ * Concordium wallet export (JSON). The file must be a regular file owned by
+ * the current user with no group or other permissions (mode 600), checked
+ * before it is read. The export must be for `testnet`. Error messages never
+ * include the file's contents.
  *
  * Development and CI environments hold no keys: this runs only where the
  * operator has put a throwaway testnet key.
@@ -38,20 +40,30 @@ export interface LoadKeyOptions {
   uid?: number;
 }
 
+/** Load the agent key from `CLAW_PAY_AGENT_KEY_FILE`. */
 export function loadAgentKey(env: Readonly<Record<string, string | undefined>>, options: LoadKeyOptions = {}): AgentKey {
+  return loadKeyFile(env, KEY_FILE_VAR, options);
+}
+
+/** Load a testnet key from the wallet export named by `variable`, under the rules above. */
+export function loadKeyFile(
+  env: Readonly<Record<string, string | undefined>>,
+  variable: string,
+  options: LoadKeyOptions = {},
+): AgentKey {
   const fs = options.fs ?? nodeFs;
-  const path = env[KEY_FILE_VAR];
+  const path = env[variable];
   if (path === undefined || path === "") {
-    throw new KeyFileError(`${KEY_FILE_VAR} is not set`);
+    throw new KeyFileError(`${variable} is not set`);
   }
   let stats: ReturnType<KeyFs["statSync"]>;
   try {
     stats = fs.statSync(path);
   } catch {
-    throw new KeyFileError(`${KEY_FILE_VAR} does not name a readable file`);
+    throw new KeyFileError(`${variable} does not name a readable file`);
   }
   if (!stats.isFile()) {
-    throw new KeyFileError(`${KEY_FILE_VAR} does not name a regular file`);
+    throw new KeyFileError(`${variable} does not name a regular file`);
   }
   const permissions = stats.mode & 0o777;
   if ((permissions & 0o077) !== 0) {

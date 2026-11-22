@@ -15,7 +15,7 @@ export { ReplayGuard } from "./replay-guard.ts";
 export type { Acquired, ReplayReason } from "./replay-guard.ts";
 export { SignRefused, createCappedSigner, refusals } from "./capped-signer.ts";
 export type { CappedSignerConfig, SignRefusal } from "./capped-signer.ts";
-export { KEY_FILE_VAR, KeyFileError, loadAgentKey } from "./keys.ts";
+export { KEY_FILE_VAR, KeyFileError, loadAgentKey, loadKeyFile } from "./keys.ts";
 export type { AgentKey, KeyFs, LoadKeyOptions } from "./keys.ts";
 export { ConfigError, loadConfig } from "./config.ts";
 export type { ClientConfig, ConfigDeps } from "./config.ts";
