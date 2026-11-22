@@ -1,9 +1,9 @@
-# Threat model v0.5
+# Threat model v0.6
 
 HUMANOID-TRADERS · RUNECLAW, Patrick Baur, CEO
 
 **Product:** Claw Pay for Concordium
-**Version:** 0.5
+**Version:** 0.6
 **Date:** 22 Nov 2026 (Europe/Amsterdam)
 **Network:** Concordium testnet only. No mainnet, no real funds.
 
@@ -11,6 +11,11 @@ This is a working model for the draft PRs. It will be revised as the x402 flow a
 
 ## Changes
 
+- **v0.6 (PR 4b):**
+  - Specifies the `vault-exact` x402 scheme (`docs/x402-vault-scheme.md`) and implements decision 8 in the facilitator spike (`packages/x402-vault`). Each limit has its own refusal reason and test.
+  - Adds the seller and the facilitator to the trust boundaries, and the sponsor account to the assets.
+  - Adds threats for x402 payload replay, a seller naming another provider, payee substitution, resource swap, facilitator misbehaviour, energy griefing, and a settlement that times out but finalizes later.
+  - The resource URL is bound by the seller's per-request `invoiceId`, not hashed into the invoice (see resource swap).
 - **v0.5 (PR 4a):**
   - Records decisions 7 (custom x402 vault scheme), 8 (sponsor fee-griefing limits) and 9 (self-verified badge check). This closes the badge and sponsored-fees open decisions.
   - Resolves the x402 open verification: vault payments do not fit the standard `exact` scheme.
@@ -44,12 +49,14 @@ Patrick's decisions, 21 Nov 2026:
 
 Decisions of 22 Nov 2026:
 
-7. **x402 via a custom vault scheme.** Vault payments do not fit x402's standard Concordium `exact` scheme (see open verification). The seller flow uses a vault-specific scheme on the standard x402 v2 flow, so every paid request still goes through the vault's caps, allowlist and receipts (PR 4b).
+7. **x402 via a custom vault scheme.** Vault payments do not fit x402's standard Concordium `exact` scheme (see open verification). The seller flow uses a vault-specific scheme on the standard x402 v2 flow, so every paid request still goes through the vault's caps, allowlist and receipts. Specified in `docs/x402-vault-scheme.md` and implemented as a spike in `packages/x402-vault` (PR 4b).
 8. **Sponsor fee-griefing limits.** Before co-signing, the facilitator:
    - dry-runs `guard_vault.pay` as the agent, and refuses if it would reject,
    - sponsors only `pay` calls on the configured vault,
    - caps expiry at 60 s,
-   - allows one in-flight payment per sender (PR 4b).
+   - allows one in-flight payment per sender.
+
+   PR 4b implements these in `VaultExactFacilitator`, plus a cap on sponsored execution energy.
 9. **Badge check is self-verified.** "Verified by Concordium" is checked by fetching the Agent Card from `agent_uri` and comparing its SHA-256 with the registry's `metadata_hash`, together with Active status. No hosted badge service is trusted. `packages/badge-check` does this before the owner approves a card hash with `add_provider`. The vault then re-checks Active status and the card hash on every `pay`.
 
 ## Trust boundaries
@@ -61,6 +68,8 @@ Decisions of 22 Nov 2026:
 - **Chain:** `GuardVault` and its events are the source of truth. Off-chain logs are not.
 - **Operator box:** the machine that holds the throwaway testnet keys (mode 600, loaded from environment variables). It runs every deploy and live testnet step, and confirms the official registry address. Development and CI environments hold no keys.
 - **CI and dependencies:** GitHub Actions runners, crates.io, npm, and pinned tool binaries from GitHub releases. CI runs with read-only repository permissions and no secrets, and it never deploys.
+- **Seller (x402 resource server):** an allowlisted registry agent that answers `402` with `vault-exact` requirements. It is untrusted by the agent: whatever it asks for, the vault pays only allowlisted providers within the caps.
+- **Facilitator (x402):** verifies and settles payments for sellers, and holds the sponsor key, which pays transaction fees only. It cannot change what the agent signed. It can refuse, delay or misreport (see threats).
 - **Verifier and node:** the verifier rebuilds the receipt chain from a Concordium node's finalized data, so it trusts that node to report the chain honestly. Anyone can point it at a node they run. CCDExplorer is a convenience view, not the source of truth.
 
 ## Assets
@@ -69,6 +78,7 @@ Decisions of 22 Nov 2026:
 - The right to change spending rules and the allowlist.
 - Public receipt integrity (hash-linked chain events).
 - Agent and owner keys (throwaway testnet keys only).
+- The facilitator's sponsor account and its test CCD for fees.
 - The deployed contract module matching the reviewed source.
 - Repository and CI integrity: what is reviewed is what is built.
 
@@ -115,13 +125,20 @@ Each invariant is covered by contract tests. The names below are the test names 
 | Mock registry deployed | The test-only `mock-agent-registry`, which anyone can rewrite, is used as the registry. | It is marked test-only in its crate docs, README and package description. It is never part of a deploy, and the operator box uses the official registry address (see wrong registry address). |
 | Supply-chain compromise | A malicious crate or npm package, a tampered tool binary or a compromised CI action runs in the build. | Lockfiles are committed and enforced in CI (`--locked`, `npm ci`). npm install scripts are disabled. Dependencies are few and exactly pinned. CI uses first-party GitHub actions only, read-only permissions and no secrets. `cargo-concordium` is pinned and checked against its sha256. The gitleaks binary is version-pinned but not yet checksum-verified (follow-up). |
 | Secret leakage | A key, seed phrase or wallet export is committed or printed in logs. | gitleaks runs on every push and pull request over the full history. `.gitignore` covers key files and wallet exports. Keys are loaded from environment variables on the operator box only. CI and development environments hold no keys. |
-| Wrong network | The client is pointed at mainnet by mistake. | The client refuses any network other than `testnet` (`assertTestnet`, wired in at start-up in PR 5). Throwaway keys must never be funded on mainnet. |
+| Wrong network | The client is pointed at mainnet by mistake. | The client refuses any network other than `testnet` (`assertTestnet`, wired in at start-up in PR 5). The x402 facilitator serves one configured network and refuses requirements for any other (`unsupported_network`). Throwaway keys must never be funded on mainnet. |
 | Unfinalized receipts | The verifier counts a receipt from a block that is later dropped. | The live exporter (PR 5) reads finalized blocks only. The verifier checks whatever events file it is given, so the file must come from a node the reader trusts. |
 | Module provenance | The module deployed on testnet is not the one built from the reviewed commit. | Publish the module reference with the source commit. PR 6 considers a `cargo-concordium` verifiable build on the operator box. |
 | Hostile or changed card host | The host at `agent_uri` serves a card that differs from the one the owner reviewed, or changes it later. | The badge check accepts a card only if its SHA-256 equals the on-chain `metadata_hash`, so a swapped card fails. If the provider later changes its card and registry hash, the vault refuses payments (`CardHashMismatch`) until the owner re-checks and re-approves. |
 | Oversized or slow card | A card host answers with a huge body or never finishes. | `fetchCard` stops at 64 KiB and after 10 s, and the check reports the card as unavailable. |
 | Operator fetches an untrusted URL | `agent_uri` points somewhere the operator box should not fetch. | The badge check is run by hand, fetches HTTPS only, follows no redirects, and sends no credentials. Cards can also be downloaded separately and checked with `--card`. |
-| Sponsor fee griefing (x402) | An agent, or someone holding its key, submits sponsored payments that fail on chain, so the facilitator pays fees for nothing. | Decision 8: dry-run first and refuse failures, sponsor only `pay` on the configured vault, a 60 s expiry cap, and one in-flight payment per sender. Implemented and tested in PR 4b. |
+| Sponsor fee griefing (x402) | An agent, or someone holding its key, submits sponsored payments that fail on chain, so the facilitator pays fees for nothing. | Decision 8: dry-run first and refuse failures, sponsor only `pay` on the configured vaults, a 60 s expiry cap, and one in-flight payment per sender. Implemented in `packages/x402-vault` (PR 4b): each limit has its own `invalidReason` and test. A payment can still fail between the dry run and execution (a pause, or a race), which costs one fee. |
+| x402 payload replay | A captured `vault-exact` payload is submitted again, to the same or another facilitator. | The vault accepts each `nonce` and `invoice_hash` once (INV-6), and the transaction expires within 60 s. The dry run refuses a replay before the sponsor signs. |
+| Seller names another provider (x402) | A hostile server's `402` names a different allowlisted provider, so the agent pays someone other than the server it called. | The vault pays only providers the owner allowlisted, within the caps, and the receipt names the provider. The PR 5 agent client checks that the offered provider matches the server it meant to pay. |
+| Payee substitution (x402) | The requirements name a `payTo` that is not the provider's wallet, or the payment lands somewhere else. | `provider`, `payTo` and `invoiceId` are inside the invoice hash. The facilitator requires the dry-run and final receipts to show `payTo` as payee. The vault pays only the registry `agent_wallet` (INV-11). |
+| Resource swap (x402) | A payment made for one resource is used to get another. | x402 does not give the client scheme the resource, so the URL is not in the invoice hash. The seller issues a fresh `invoiceId` for each `402` answer, serves only the resource it was issued for, and the vault pays each invoice once. A seller that ignores this duty can be tricked; the spec lists it as a seller duty. |
+| Facilitator misbehaviour (x402) | The facilitator alters, withholds or misreports a payment. | The agent's signature covers the vault, entrypoint, parameter and expiry, so the sponsor cannot change them. It can refuse or delay until expiry (at most 60 s). A seller can confirm the receipt itself with `claw-pay-verify`. |
+| Energy griefing (x402) | An agent asks the sponsor to pay for a huge execution-energy allowance. | The facilitator refuses energy above its configured cap (`energy_too_high`). |
+| Settlement timeout (x402) | `settle` times out, but the transaction finalizes later, so the agent paid and the seller did not serve. | The seller does not serve on a timeout. The transaction can finalize only until its expiry (at most 60 s). The receipt is public, so the seller can reconcile by invoice hash, and the invoice cannot be paid twice. Automatic reconciliation is not built yet. |
 
 ## Open decisions
 
@@ -134,6 +151,7 @@ None at the moment. The badge and sponsored-fees questions were settled on 22 No
   - A vault payment is a contract update calling `guard_vault.pay`.
   - Decision 7 follows from this.
 - **Badge definition.** The definition used in decision 9 comes from Concordium's badge documentation as quoted in a third-party package's source; the docs site was not reachable from the build environment. Confirm it against `docs.concordium.com` on the operator box.
+- **x402 on a live node.** The `vault-exact` facilitator is tested only against an in-memory chain. Submitting sponsored V1 transactions, dry-running `pay` through `invokeInstance`, and reading finalized events must be confirmed on testnet from the operator box (PR 5).
 - **Registry address.** The official CIS-8004 registry address on testnet must be confirmed on the operator box before deploy.
 
 ## What the verifier cannot check
@@ -154,5 +172,7 @@ Mainnet, real funds, KYC, paid services, EVM and PayPal. Admin, keeper or off-ch
 A compromised owner key can do everything the owner can. It can change caps, rotate the agent, pause, and allowlist providers. It can also withdraw the whole vault balance: `withdraw` pays only the owner's account, but the attacker then controls that account. Caps bound loss from an agent-key compromise, not from an owner-key compromise. Testnet keys must stay throwaway, uncommitted, and mode 600 on the operator box.
 
 The vault trusts the registry named at init. A compromised or wrong registry could approve any agent and wallet. Caps and the pause still bound the loss per day.
+
+A compromised sponsor key can spend the sponsor account's test CCD on fees, but cannot move vault funds or sign as the agent.
 
 Within the caps, a compromised agent key can still pay allowlisted providers until the owner pauses. That is up to 2× the daily cap across midnight, and transactions already submitted may finalize after the pause. Pinning and lockfiles reduce supply-chain risk but do not remove it.
