@@ -4,3 +4,7 @@ export { SellerConfigError, parseSellerConfig } from "./seller-config.ts";
 export type { SellerConfig, SellerRoute } from "./seller-config.ts";
 export { createSeller } from "./seller.ts";
 export type { SellerOptions, Settler } from "./seller.ts";
+export { SELLER_CONFIG_VAR, SPONSOR_KEY_VAR, startSeller } from "./seller-cli.ts";
+export type { RunningSeller, SellerDeps } from "./seller-cli.ts";
+export { AGENT_USAGE, runAgent } from "./agent-cli.ts";
+export type { AgentDeps } from "./agent-cli.ts";
