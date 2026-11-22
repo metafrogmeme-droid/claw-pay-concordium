@@ -13,3 +13,7 @@ export type { VaultView } from "./vault-view.ts";
 export { UnknownEntryError, vaultEventsFromSummary, vaultEventsFromTrace } from "./trace.ts";
 export { nodeVaultChain } from "./vault-chain.ts";
 export { nodeAgentChain } from "./agent-chain.ts";
+export { ExportError, exportVaultEvents } from "./exporter.ts";
+export type { EventsFileJson, ExportClient, ExportOptions, ExportResult } from "./exporter.ts";
+export { needsAttention, reconcile } from "./reconcile.ts";
+export type { ReconcileItem, ReconcileReport } from "./reconcile.ts";

@@ -226,3 +226,55 @@ export function successInvoke(trace: ContractTraceEvent[]): InvokeContractResult
 export function rejectedInvoke(code: number): InvokeContractResult {
   return { tag: "failure", usedEnergy: 1n, reason: { tag: RejectReasonTag.RejectedReceive, rejectReason: code } } as unknown as InvokeContractResult;
 }
+
+const EVENTS_FIXTURE = fileURLToPath(new URL("../../../fixtures/vault-events.v1.json", import.meta.url));
+
+/** The golden events file (simulated chain), as parsed JSON. */
+export function goldenEventsJson(): { vault: { index: number; subindex: number }; view: { next_nonce: number; receipt_head: string }; events: string[] } {
+  return JSON.parse(readFileSync(EVENTS_FIXTURE, "utf8")) as ReturnType<typeof goldenEventsJson>;
+}
+
+/**
+ * A fake finalized chain, heights 100..110, carrying the 13 golden vault
+ * events spread over blocks: the init, an empty block, another contract's
+ * events, a failed transaction, a `pay` whose events sit in an `Interrupted`
+ * entry, and several updates in one block. The view at height 110 is the
+ * fixture's; the "latest" view differs, to show the export reads at 110.
+ */
+export function goldenChain(): { node: FakeNode; vault: ContractAddress.Type; events: Uint8Array[] } {
+  const golden = goldenEventsJson();
+  const vault = ContractAddress.create(golden.vault.index, golden.vault.subindex);
+  const registry = ContractAddress.create(0, 0);
+  const other = ContractAddress.create(9, 0);
+  const ev = golden.events.map((event) => fromHex(event));
+  const at = (i: number): Uint8Array => {
+    const event = ev[i];
+    if (event === undefined) {
+      throw new Error(`no golden event ${String(i)}`);
+    }
+    return event;
+  };
+  const items: Upward<BlockItemSummary>[][] = [
+    [transferItem(), initItem(vault, [at(0)])], // 100
+    [], // 101
+    [updateItem([updated(vault, [at(1)])]), updateItem([updated(other, [new Uint8Array([1, 2, 3])])])], // 102
+    [failedItem(-6), updateItem([updated(vault, [at(2)])])], // 103
+    [updateItem([interrupted(vault, []), updated(registry, []), resumed(vault), updated(vault, [at(3)])])], // 104
+    [updateItem([interrupted(vault, [at(4)]), updated(registry, []), resumed(vault), updated(vault, [])]), updateItem([updated(vault, [at(5)])])], // 105
+    [updateItem([updated(vault, [at(6)])]), updateItem([updated(vault, [at(7)])]), updateItem([updated(vault, [at(8)])])], // 106
+    [accountCreationItem()], // 107
+    [updateItem([interrupted(vault, []), updated(registry, []), resumed(vault), updated(vault, [at(9)])]), updateItem([updated(vault, [at(10)])])], // 108
+    [updateItem([interrupted(vault, []), updated(registry, []), resumed(vault), updated(vault, [at(11)])])], // 109
+    [updateItem([updated(vault, [at(12)])])], // 110
+  ];
+  const blocks: FakeBlock[] = items.map((blockItems, i) => ({ height: BigInt(100 + i), hash: blockHash(100 + i), items: blockItems }));
+  const node = fakeNode({
+    blocks,
+    lastFinalizedHeight: 110n,
+    views: new Map([
+      [BlockHash.toHexString(blockHash(110)), fromHex(viewFixture().bytes)],
+      ["latest", viewBytes({ nextNonce: 99n })],
+    ]),
+  });
+  return { node, vault, events: ev };
+}
