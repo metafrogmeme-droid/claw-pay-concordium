@@ -31,6 +31,11 @@ export interface AgentChain {
   vaultNonce(): Promise<bigint>;
   /** The agent account's next sequence number. */
   accountSequence(): Promise<bigint>;
+  /**
+   * The vault's own spend for its current UTC day, from its `view`. When it
+   * is for today and higher than the local log's total, it is used instead.
+   */
+  vaultSpentToday?(): Promise<{ day: number; spent: bigint }>;
 }
 
 export type RefusalLayer = "protocol" | "spend-policy" | "replay-guard" | "capped-signer";
@@ -86,15 +91,17 @@ export function createPayingFetch(options: PayingFetchOptions): PayingFetch {
       throw new PaymentRefused("protocol", ["invalid_payment_required"]);
     }
 
-    // Layer 1: spend-policy.
-    const decision = decide(
-      {
-        requestUrl: url,
-        offers: paymentRequired.accepts,
-        spentToday: options.log.spentInUtcDay(utcDay(now())),
-      },
-      options.policy,
-    );
+    // Layer 1: spend-policy. Today's spend is the larger of the local log's
+    // total and the vault's own figure, when the vault reports today.
+    const today = utcDay(now());
+    let spentToday = options.log.spentInUtcDay(today);
+    if (options.chain.vaultSpentToday !== undefined) {
+      const onChain = await options.chain.vaultSpentToday();
+      if (onChain.day === today && onChain.spent > spentToday) {
+        spentToday = onChain.spent;
+      }
+    }
+    const decision = decide({ requestUrl: url, offers: paymentRequired.accepts, spentToday }, options.policy);
     if (!decision.allow) {
       throw new PaymentRefused("spend-policy", decision.reasons);
     }

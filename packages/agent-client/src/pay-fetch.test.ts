@@ -222,6 +222,28 @@ describe("payFetch against a local x402 seller", () => {
     assert.equal(seller.paymentsSeen, 2);
   });
 
+  test("the vault's own spend for today is a floor under the local log", async () => {
+    const today = utcDay(Date.now());
+    const withVaultSpend = (day: number): PayingFetch =>
+      createPayingFetch({
+        policy: policy(),
+        agent: agentKey.address,
+        sign: createCappedSigner({ signer: agentKey.signer, agent: agentKey.address, vault: VAULT, perPaymentMax: 1_000_000n, maxEnergy: 30_000n }),
+        chain: {
+          vaultNonce: () => Promise.resolve(seller.nextNonce),
+          accountSequence: () => Promise.resolve(1n),
+          vaultSpentToday: () => Promise.resolve({ day, spent: 2_500_000n }),
+        },
+        log,
+      });
+    // The local log is empty, but the vault has already spent 2.5 of 3 CCD today.
+    const error = await refusal(withVaultSpend(today)(`${origin}/weather`));
+    assert.deepEqual(error.reasons, ["over_daily"]);
+    assert.equal(seller.paymentsSeen, 0);
+    // A figure for another day is ignored.
+    assert.equal((await withVaultSpend(today - 1)(`${origin}/weather`)).status, 200);
+  });
+
   test("the capped signer is the last word: a misconfigured signer sends nothing", async () => {
     const error = await refusal(payingFetch(policy(), ContractAddress.create(8, 0))(`${origin}/weather`));
     assert.equal(error.layer, "capped-signer");

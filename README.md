@@ -16,7 +16,7 @@ Limits live in a Rust smart contract (`GuardVault`). The owner alone can change 
 
 ## Status
 
-In progress. The vault contract enforces caps, owner-only rules, a pause, replay protection, a registry-checked provider allowlist and hash-linked receipts. A verifier CLI rebuilds and checks the receipt chain from the vault's events alone. A badge-check tool self-verifies a provider's Agent Card before the owner allowlists it. An x402 scheme, `vault-exact`, lets sellers charge an agent through its vault: the spec, agent client and facilitator are in, tested offline. The agent client pays only when its spend-policy, replay-guard and capped signer all agree, and it keeps a hash-linked local receipt log. The live node adapter, seller demo, testnet runbook and verifier page land in later small draft pull requests. Nothing here is production-ready, and nothing should be pointed at mainnet.
+In progress. The vault contract enforces caps, owner-only rules, a pause, replay protection, a registry-checked provider allowlist and hash-linked receipts. A verifier CLI rebuilds and checks the receipt chain from the vault's events alone. A badge-check tool self-verifies a provider's Agent Card before the owner allowlists it. An x402 scheme, `vault-exact`, lets sellers charge an agent through its vault: the spec, agent client and facilitator are in, tested offline. The agent client pays only when its spend-policy, replay-guard and capped signer all agree, and it keeps a hash-linked local receipt log. A node adapter connects the facilitator and client to a testnet node (refusing any other network), exports the vault's finalized events for the verifier, and reconciles the local log against the chain. The seller demo, owner CLI, testnet runbook and verifier page land in later small draft pull requests. Nothing here is production-ready, and nothing should be pointed at mainnet.
 
 ## Layout
 
@@ -27,9 +27,10 @@ In progress. The vault contract enforces caps, owner-only rules, a pause, replay
 | `packages/agent-client/` | Agent client: `payFetch` pays x402 `vault-exact` offers through the vault behind spend-policy, replay-guard and a capped signer, with a local receipt log |
 | `packages/verifier/` | `claw-pay-verify`: rebuilds and checks the receipt chain from vault events |
 | `packages/badge-check/` | `claw-pay-badge-check`: checks a registry agent is Verified by Concordium before it is allowlisted |
+| `packages/node-adapter/` | Live testnet connection: node guard, vault view, gRPC `VaultChain`/`AgentChain`, `claw-pay-export` for finalized events, and log reconcile |
 | `packages/x402-vault/` | x402 `vault-exact` scheme: agent client and facilitator for payments through `GuardVault` |
 | `docs/` | Specs, starting with the `vault-exact` x402 scheme |
-| `fixtures/` | Golden vault events, registry replies and `pay` parameters, produced by the contract tests and read by the TypeScript tests |
+| `fixtures/` | Golden vault events, vault view, registry replies and `pay` parameters, produced by the contract tests and read by the TypeScript tests |
 | `SCOPE.md` | Scope, architecture and plan of pull requests |
 | `THREAT_MODEL.md` | Trust boundaries, invariants, threats and open decisions |
 
