@@ -190,7 +190,9 @@ node packages/verifier/src/cli.ts /secure/events.json
 - **Export:** reads finalized blocks only, with the vault's view at the same block. The `--log` report should show every payment "confirmed on chain".
 - **Verify:** rebuilds the receipt chain from the events alone and checks every hash, link and rule, ending at the vault's head.
 
-**Evidence for the submission:** look up the vault address and each payment's transaction hash on CCDExplorer (testnet).
+**Evidence for the submission:**
+- Look up the vault address and each payment's transaction hash on CCDExplorer (testnet).
+- Show the same check in the browser: run `npm run serve:page`, open http://127.0.0.1:8080, then load `/secure/events.json`, or use "Read live from a testnet node" with the node's gRPC-web URL, the vault and the init height.
 
 ## 8. Teardown
 
