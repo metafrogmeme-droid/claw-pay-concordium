@@ -2,12 +2,17 @@
   "name": "@claw-pay-concordium/agent-client",
   "version": "0.1.0",
   "private": true,
-  "description": "Agent client for Claw Pay for Concordium. Concordium testnet only.",
+  "description": "Agent client for Claw Pay for Concordium: spend-policy, replay-guard, capped-signer, receipt log and the x402 vault-exact pay flow. Concordium testnet only.",
   "license": "MIT",
   "author": "HUMANOID-TRADERS",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@claw-pay-concordium/x402-vault": "0.1.0",
+    "@concordium/web-sdk": "12.0.2",
+    "@x402/core": "2.30.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
