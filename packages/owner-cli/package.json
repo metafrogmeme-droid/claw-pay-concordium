@@ -1,0 +1,22 @@
+{
+  "name": "@claw-pay-concordium/owner-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "claw-pay-owner: the GuardVault owner's testnet CLI (deploy, init, deposit, caps, agent, pause, allowlist, withdraw, view). Dry run unless --send. Concordium testnet only.",
+  "license": "MIT",
+  "author": "HUMANOID-TRADERS",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@claw-pay-concordium/agent-client": "0.1.0",
+    "@claw-pay-concordium/node-adapter": "0.1.0",
+    "@claw-pay-concordium/verifier": "0.1.0",
+    "@concordium/web-sdk": "12.0.2"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "node --test \"src/**/*.test.ts\""
+  }
+}
