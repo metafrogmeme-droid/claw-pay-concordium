@@ -1,6 +1,10 @@
 /**
- * Test helpers. Keys here are generated in memory for one test run and then
- * dropped: never written to disk, logged, funded or used on any network.
+ * Test helpers, exported as `@claw-pay-concordium/x402-vault/test-support`
+ * for other packages' offline tests. Test-only: never use in a real client
+ * or facilitator.
+ *
+ * Keys here are generated in memory for one test run and then dropped:
+ * never written to disk, logged, funded or used on any network.
  */
 
 import { createHash, generateKeyPairSync } from "node:crypto";
