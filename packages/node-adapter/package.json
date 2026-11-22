@@ -1,0 +1,22 @@
+{
+  "name": "@claw-pay-concordium/node-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Live Concordium testnet node adapter: VaultChain and AgentChain on gRPC, vault view decoder, finalized events exporter and receipt-log reconcile. Concordium testnet only.",
+  "license": "MIT",
+  "author": "HUMANOID-TRADERS",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@claw-pay-concordium/agent-client": "0.1.0",
+    "@claw-pay-concordium/verifier": "0.1.0",
+    "@claw-pay-concordium/x402-vault": "0.1.0",
+    "@concordium/web-sdk": "12.0.2"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "node --test \"src/**/*.test.ts\""
+  }
+}
