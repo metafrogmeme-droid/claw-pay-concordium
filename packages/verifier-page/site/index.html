@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Receipt Verifier</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">Claw Pay for Concordium · testnet</p>
+    <h1>Receipt verifier</h1>
+    <p class="lede">Rebuild a GuardVault's receipt chain from its contract events alone. The page checks every hash and link, replays the owner's rules against every payment, and confirms that the chain ends at the head the contract reports. Everything runs in this browser.</p>
+  </header>
+
+  <main>
+    <section class="card" aria-labelledby="offline-title">
+      <h2 id="offline-title">Check an events file</h2>
+      <p class="hint">Use a file from <code>claw-pay-export</code>. No network is used.</p>
+      <div id="drop" class="drop">
+        <label class="button" for="file">Choose file</label>
+        <input id="file" type="file" accept="application/json,.json">
+        <span>or drop it here</span>
+        <button id="sample" type="button" class="link">Load the sample</button>
+      </div>
+      <details>
+        <summary>Paste JSON instead</summary>
+        <textarea id="paste" rows="6" spellcheck="false" aria-label="Events file JSON"></textarea>
+        <button id="check-paste" type="button" class="button">Check pasted JSON</button>
+      </details>
+    </section>
+
+    <section class="card" aria-labelledby="live-title">
+      <h2 id="live-title">Read live from a testnet node</h2>
+      <p class="hint">The browser reads the vault's finalized events from the node you name, over gRPC-web. The node must be on Concordium testnet; any other network is refused. You trust that node to report the chain honestly.</p>
+      <form id="live" class="grid">
+        <label>Node URL<input id="node" name="node" type="url" placeholder="https://node.example:20000" required autocomplete="off"></label>
+        <label>Vault<input id="vault" name="vault" placeholder="index[,subindex]" required autocomplete="off"></label>
+        <label>From height<input id="from" name="from" inputmode="numeric" placeholder="the vault's init block" required autocomplete="off"></label>
+        <label>To height <span class="optional">(optional)</span><input id="to" name="to" inputmode="numeric" placeholder="last finalized" autocomplete="off"></label>
+        <button id="live-check" type="submit" class="button">Read and check</button>
+      </form>
+      <p id="progress" class="hint" aria-live="polite"></p>
+    </section>
+
+    <section class="card result" aria-live="polite" aria-labelledby="status">
+      <h2 id="status" class="status">No result yet</h2>
+      <p id="summary">Choose a file, load the sample, or read from a node.</p>
+      <a id="download" class="link" download="vault-events.json" hidden>Download the events file</a>
+      <div id="receipts" class="table-wrap" hidden>
+        <table>
+          <thead>
+            <tr><th>Nonce</th><th>Time (UTC)</th><th>Amount</th><th>Provider</th><th>Payee</th><th>Hash</th></tr>
+          </thead>
+          <tbody id="receipts-body"></tbody>
+        </table>
+      </div>
+      <ul id="issues" class="issues"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>Testnet only. No keys and no funds; the page only reads. The same checks run in <code>claw-pay-verify</code>.</p>
+  </footer>
+</body>
+</html>

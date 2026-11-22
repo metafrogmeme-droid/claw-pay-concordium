@@ -15,7 +15,9 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm test --workspaces --if-present"
+    "test": "npm test --workspaces --if-present",
+    "build:page": "npm run build --workspace @claw-pay-concordium/verifier-page",
+    "serve:page": "npm run serve --workspace @claw-pay-concordium/verifier-page --"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
