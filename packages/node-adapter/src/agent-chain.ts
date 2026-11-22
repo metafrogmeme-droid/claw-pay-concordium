@@ -7,7 +7,7 @@
 import type { AccountAddress, ContractAddress } from "@concordium/web-sdk";
 import type { AgentChain } from "@claw-pay-concordium/agent-client";
 
-import type { NodeClient } from "./node-client.ts";
+import type { NodeClient } from "./testnet-guard.ts";
 import { readVaultView } from "./vault-view.ts";
 
 export function nodeAgentChain(
