@@ -4,19 +4,47 @@ HUMANOID-TRADERS · RUNECLAW, Patrick Baur, CEO
 
 **Testnet only.** This project targets Concordium testnet. It does not use mainnet, real funds, or paid services.
 
-## Prior work
-
-Claw Pay for Concordium is a new build for the Concordium Trusted Agents hackathon. It reuses the decision rules (`decide` core) and receipt log from our earlier Claw Pay project; the Concordium contracts, Agent Registry checks, x402 flow and verifier are new.
-
 ## What it is
 
 An entry for the Encode x Concordium Trusted Agents hackathon. An AI agent can pay on Concordium testnet only within limits it cannot override, only to verified providers, and every payment leaves a public receipt anyone can check.
 
-Limits live in a Rust smart contract (`GuardVault`). The owner alone can change rules. The agent can only call `pay`. Payments go only to providers verified in Concordium's Agent Registry, and each payment emits a hash-linked receipt on chain.
+## How it works
+
+1. **The limits live in a Rust smart contract**, `GuardVault`.
+   - It holds the test CCD and enforces per-payment and daily caps, a provider allowlist and a pause.
+   - Only the owner can change the rules. The agent can only call `pay`.
+2. **Providers are verified in Concordium's Agent Registry.**
+   - The vault checks the registry on every payment, and pays only an Active agent with the approved card, at its registered wallet.
+3. **The agent pays over x402** with a vault scheme, `vault-exact`.
+   - Before anything is signed, three client-side checks must agree: spend-policy, replay-guard and a capped signer.
+   - A facilitator dry-runs each payment and sponsors its fee.
+4. **Every payment logs a hash-linked `Receipt`** on chain.
+5. **Anyone can rebuild and check the receipt chain** from the vault's events alone, with `claw-pay-verify` or the verifier page.
+
+More detail, with diagrams, is in [`docs/architecture.md`](docs/architecture.md).
 
 ## Status
 
-In progress. The vault contract enforces caps, owner-only rules, a pause, replay protection, a registry-checked provider allowlist and hash-linked receipts. A verifier CLI rebuilds and checks the receipt chain from the vault's events alone. A badge-check tool self-verifies a provider's Agent Card before the owner allowlists it. An x402 scheme, `vault-exact`, lets sellers charge an agent through its vault: the spec, agent client and facilitator are in, tested offline. The agent client pays only when its spend-policy, replay-guard and capped signer all agree, and it keeps a hash-linked local receipt log. A node adapter connects the facilitator and client to a testnet node (refusing any other network), exports the vault's finalized events for the verifier, and reconciles the local log against the chain. An owner CLI runs every owner step on testnet: a dry run by default, sending only with `--send`. A demo x402 seller and agent CLI complete the end-to-end flow, with a step-by-step testnet runbook for the operator box. A verifier page runs the same receipt checks in a browser, on an exported file or read live from a testnet node. The architecture and path-to-production write-ups land in the last draft pull request. Nothing here is production-ready, and nothing should be pointed at mainnet.
+**Feature-complete for the hackathon scope, and fully tested offline.**
+- The contract, verifier, badge check, x402 scheme and facilitator, agent client, live node adapter, owner CLI, demo seller and agent, and the verifier page are in.
+- The live testnet run follows [`docs/testnet-demo.md`](docs/testnet-demo.md) on the operator box.
+
+Nothing here is production-ready, and nothing should be pointed at mainnet. [`docs/path-to-production.md`](docs/path-to-production.md) lists what would have to change first.
+
+## Prior work
+
+Claw Pay for Concordium is a new build for the Concordium Trusted Agents hackathon. It carries over the design of the decision rules (`decide` core) and the receipt log from our earlier Claw Pay project, re-implemented from scratch here as spend-policy and a hash-linked receipt log. The Concordium contracts, Agent Registry checks, x402 flow, verifier and verifier page are new.
+
+## Documents
+
+| Document | What it covers |
+|---|---|
+| [`SCOPE.md`](SCOPE.md) | Scope, goals and the plan of pull requests |
+| [`THREAT_MODEL.md`](THREAT_MODEL.md) | Decisions, trust boundaries, invariants, threats, open verification and residual risk |
+| [`docs/architecture.md`](docs/architecture.md) | How the pieces fit, one paid request step by step, where each rule is enforced, data formats |
+| [`docs/x402-vault-scheme.md`](docs/x402-vault-scheme.md) | The `vault-exact` x402 scheme spec |
+| [`docs/testnet-demo.md`](docs/testnet-demo.md) | The operator runbook for the end-to-end testnet demo |
+| [`docs/path-to-production.md`](docs/path-to-production.md) | What would have to change before real funds |
 
 ## Layout
 
@@ -24,18 +52,16 @@ In progress. The vault contract enforces caps, owner-only rules, a pause, replay
 |---|---|
 | `contracts/guard-vault/` | `GuardVault` Rust contract (`concordium-std`, target `wasm32v1-none`) and its simulated-chain tests |
 | `contracts/mock-agent-registry/` | Test-only CIS-8004 Agent Registry mock used by the tests. Never deploy. |
-| `packages/agent-client/` | Agent client: `payFetch` pays x402 `vault-exact` offers through the vault behind spend-policy, replay-guard and a capped signer, with a local receipt log |
 | `packages/verifier/` | `claw-pay-verify`: rebuilds and checks the receipt chain from vault events |
 | `packages/badge-check/` | `claw-pay-badge-check`: checks a registry agent is Verified by Concordium before it is allowlisted |
+| `packages/x402-vault/` | x402 `vault-exact` scheme: agent client and facilitator for payments through `GuardVault` |
+| `packages/agent-client/` | Agent client: `payFetch` pays x402 `vault-exact` offers through the vault behind spend-policy, replay-guard and a capped signer, with a local receipt log |
 | `packages/node-adapter/` | Live testnet connection: node guard, vault view, gRPC `VaultChain`/`AgentChain`, `claw-pay-export` for finalized events, and log reconcile |
 | `packages/owner-cli/` | `claw-pay-owner`: the vault owner's testnet CLI (deploy, init, deposit, caps, agent, pause, allowlist, withdraw, view), dry run unless `--send` |
 | `packages/demo/` | Testnet demo: `claw-pay-seller` (x402 seller, invoice book, in-process facilitator) and `claw-pay-agent` |
 | `packages/verifier-page/` | The verifier page: the receipt checks in a browser, on an events file or live from a testnet node (built page in `site/`) |
-| `packages/x402-vault/` | x402 `vault-exact` scheme: agent client and facilitator for payments through `GuardVault` |
-| `docs/` | The `vault-exact` x402 scheme spec and the testnet demo runbook |
+| `docs/` | Architecture, the `vault-exact` scheme spec, the testnet demo runbook and the path to production |
 | `fixtures/` | Golden vault events, vault view, registry replies, `pay` and owner parameters and reject codes, produced by the contract tests and read by the TypeScript tests |
-| `SCOPE.md` | Scope, architecture and plan of pull requests |
-| `THREAT_MODEL.md` | Trust boundaries, invariants, threats and open decisions |
 
 ## Local checks
 
@@ -73,6 +99,12 @@ npm ci --ignore-scripts
 npm run lint && npm run typecheck && npm test
 ```
 
+Rebuild the verifier page after changing it. CI fails if the committed page is out of date:
+
+```bash
+npm run build:page
+```
+
 Verify the golden receipt chain with the CLI:
 
 ```bash
@@ -91,7 +123,7 @@ node packages/badge-check/src/cli.ts fixtures/agent-views.v1.json --token 10 --c
 npm run serve:page
 ```
 
-Then open http://127.0.0.1:8080 and load the sample, an events file from `claw-pay-export`, or read a vault live from a testnet node. See [`packages/verifier-page/README.md`](packages/verifier-page/README.md).
+Then open http://127.0.0.1:8080. You can load the sample, open an events file from `claw-pay-export`, or read a vault live from a testnet node. See [`packages/verifier-page/README.md`](packages/verifier-page/README.md).
 
 ## Run the testnet demo
 
