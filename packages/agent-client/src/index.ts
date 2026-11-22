@@ -19,3 +19,5 @@ export { KEY_FILE_VAR, KeyFileError, loadAgentKey } from "./keys.ts";
 export type { AgentKey, KeyFs, LoadKeyOptions } from "./keys.ts";
 export { ConfigError, loadConfig } from "./config.ts";
 export type { ClientConfig, ConfigDeps } from "./config.ts";
+export { PaymentRefused, createPayingFetch } from "./pay-fetch.ts";
+export type { AgentChain, PayingFetch, PayingFetchOptions, RefusalLayer } from "./pay-fetch.ts";
