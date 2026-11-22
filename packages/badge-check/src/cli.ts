@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /**
- * claw-pay-badge-check <agent-view.json> [--card <file>]
+ * claw-pay-badge-check <agent-view.json> [--token <id>] [--card <file>]
  *
  * The input file holds `{ "token_id": <n>, "agent_of_reply": "<hex>" }`: the
- * raw reply of the registry's `agentOf` for that token id. Without `--card`,
- * the card is fetched from the agent's `agent_uri` (HTTPS only).
+ * raw reply of the registry's `agentOf` for that token id. A file with an
+ * `agents` array of such entries (like fixtures/agent-views.v1.json) needs
+ * `--token` to pick one. Without `--card`, the card is fetched from the
+ * agent's `agent_uri` (HTTPS only).
  *
  * Exit codes: 0 eligible for the allowlist, 1 not eligible, 2 usage error or
  * unreadable input.
@@ -19,24 +21,33 @@ import { decodeAgentView, type AgentView } from "./agent-view.ts";
 import { checkBadge, type BadgeReport } from "./badge.ts";
 import { fetchCard, type FetchCardOptions } from "./card.ts";
 
-export const USAGE = "usage: claw-pay-badge-check <agent-view.json> [--card <file>]";
+export const USAGE =
+  "usage: claw-pay-badge-check <agent-view.json> [--token <id>] [--card <file>]";
 
 interface Args {
   input: string;
+  token: number | null;
   card: string | null;
 }
 
 function parseArgs(args: readonly string[]): Args | null {
   let input: string | null = null;
+  let token: number | null = null;
   let card: string | null = null;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
+    const value = args[i + 1];
     if (arg === "--card") {
-      const value = args[i + 1];
       if (value === undefined || card !== null) {
         return null;
       }
       card = value;
+      i++;
+    } else if (arg === "--token") {
+      if (value === undefined || token !== null || !/^\d+$/.test(value)) {
+        return null;
+      }
+      token = Number(value);
       i++;
     } else if (arg !== undefined && !arg.startsWith("--") && input === null) {
       input = arg;
@@ -44,15 +55,32 @@ function parseArgs(args: readonly string[]): Args | null {
       return null;
     }
   }
-  return input === null ? null : { input, card };
+  return input === null ? null : { input, token, card };
 }
 
-function readInput(path: string): { tokenId: bigint; view: AgentView } {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readInput(path: string, token: number | null): { tokenId: bigint; view: AgentView } {
   const json = JSON.parse(readFileSync(path, "utf8")) as unknown;
-  if (typeof json !== "object" || json === null) {
+  if (!isRecord(json)) {
     throw new Error("input must be a JSON object");
   }
-  const record = json as Record<string, unknown>;
+  let record: Record<string, unknown> = json;
+  const agents = json["agents"];
+  if (Array.isArray(agents)) {
+    if (token === null) {
+      throw new Error("the file lists several agents; pick one with --token <id>");
+    }
+    const entry: unknown = agents.find((agent) => isRecord(agent) && agent["token_id"] === token);
+    if (!isRecord(entry)) {
+      throw new Error(`no agent with token_id ${String(token)} in the file`);
+    }
+    record = entry;
+  } else if (token !== null && record["token_id"] !== token) {
+    throw new Error(`the file is for token_id ${String(record["token_id"])}, not ${String(token)}`);
+  }
   const tokenId = record["token_id"];
   const reply = record["agent_of_reply"];
   if (typeof tokenId !== "number" || !Number.isSafeInteger(tokenId) || tokenId < 0) {
@@ -110,7 +138,7 @@ export async function run(
   }
   let input;
   try {
-    input = readInput(parsed.input);
+    input = readInput(parsed.input, parsed.token);
   } catch (error) {
     err(`cannot read ${parsed.input}: ${error instanceof Error ? error.message : String(error)}`);
     return 2;

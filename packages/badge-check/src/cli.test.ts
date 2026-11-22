@@ -7,7 +7,7 @@ import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { USAGE, run } from "./cli.ts";
-import { CARD_PATH, REVOKED, VERIFIED, agentEntry } from "./test-fixtures.ts";
+import { AGENT_VIEWS_PATH, CARD_PATH, REVOKED, VERIFIED, agentEntry } from "./test-fixtures.ts";
 
 const CLI_PATH = fileURLToPath(new URL("./cli.ts", import.meta.url));
 
@@ -50,6 +50,16 @@ describe("claw-pay-badge-check", () => {
     assert.equal(code, 0);
     assert.ok(out.some((line) => line.startsWith("ELIGIBLE")));
     assert.match(out.at(-1) ?? "", /^add_provider parameter: \{"token_id":10,"card_hash":"[0-9a-f]{64}"\}$/);
+  });
+
+  test("--token picks an agent from a multi-agent file like the fixture", async () => {
+    const { code, out } = await capture([AGENT_VIEWS_PATH, "--token", "10", "--card", CARD_PATH]);
+    assert.equal(code, 0);
+    assert.match(out.at(-1) ?? "", /"token_id":10/);
+    assert.equal((await capture([AGENT_VIEWS_PATH, "--card", CARD_PATH])).code, 2, "no --token");
+    assert.equal((await capture([AGENT_VIEWS_PATH, "--token", "99"])).code, 2, "unknown token");
+    assert.equal((await capture([inputFor(VERIFIED), "--token", "11"])).code, 2, "wrong token");
+    assert.equal((await capture([inputFor(VERIFIED), "--token", "x"])).code, 2, "bad token");
   });
 
   test("a revoked agent exits 1", async () => {
