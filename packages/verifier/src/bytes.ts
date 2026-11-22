@@ -34,6 +34,13 @@ export class ByteReader {
     return value;
   }
 
+  u32(): number {
+    this.#need(4);
+    const value = this.#view.getUint32(this.#offset, true);
+    this.#offset += 4;
+    return value;
+  }
+
   u64(): bigint {
     this.#need(8);
     const value = this.#view.getBigUint64(this.#offset, true);

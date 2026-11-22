@@ -5,6 +5,13 @@ import { DecodeError, ByteReader, fromHex, toHex, u64Bytes } from "./bytes.ts";
 import { decodeEvent, encodeReceiptBody, type ReceiptBody } from "./events.ts";
 
 describe("ByteReader", () => {
+  test("reads little-endian u32", () => {
+    const reader = new ByteReader(new Uint8Array([0x04, 0x03, 0x02, 0x01]));
+    assert.equal(reader.u32(), 0x01020304);
+    reader.finish();
+    assert.throws(() => new ByteReader(new Uint8Array(2)).u32(), DecodeError);
+  });
+
   test("reads little-endian u64 and refuses short input", () => {
     const reader = new ByteReader(u64Bytes(0x0102030405060708n));
     assert.equal(reader.u64(), 0x0102030405060708n);

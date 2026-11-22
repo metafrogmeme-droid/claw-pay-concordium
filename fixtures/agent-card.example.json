@@ -1,0 +1,10 @@
+{
+  "name": "Example Provider Agent",
+  "description": "A sample Agent Card for the GuardVault and badge-check tests. Not a real agent.",
+  "endpoints": [
+    {
+      "name": "x402",
+      "url": "https://provider.example/api"
+    }
+  ]
+}

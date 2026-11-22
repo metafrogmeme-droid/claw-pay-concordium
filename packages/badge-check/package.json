@@ -1,0 +1,22 @@
+{
+  "name": "@claw-pay-concordium/badge-check",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-verifies a CIS-8004 agent's Agent Card hash before the vault owner allowlists it. Concordium testnet only.",
+  "license": "MIT",
+  "author": "HUMANOID-TRADERS",
+  "type": "module",
+  "bin": {
+    "claw-pay-badge-check": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@claw-pay-concordium/verifier": "0.1.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "node --test \"src/**/*.test.ts\""
+  }
+}
