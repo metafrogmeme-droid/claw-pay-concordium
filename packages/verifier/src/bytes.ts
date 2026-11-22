@@ -79,8 +79,15 @@ export function u64Bytes(value: bigint): Uint8Array {
   return out;
 }
 
+const HEX_DIGITS = "0123456789abcdef";
+
+/** Lowercase hex. Plain TypeScript, so it also runs in a browser. */
 export function toHex(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString("hex");
+  let out = "";
+  for (const byte of bytes) {
+    out += (HEX_DIGITS[byte >> 4] ?? "") + (HEX_DIGITS[byte & 0x0f] ?? "");
+  }
+  return out;
 }
 
 /** Parse lowercase or uppercase hex with an even number of digits. */
@@ -88,7 +95,11 @@ export function fromHex(hex: string): Uint8Array {
   if (!/^(?:[0-9a-fA-F]{2})*$/.test(hex)) {
     throw new DecodeError("not a hex string with an even number of digits");
   }
-  return new Uint8Array(Buffer.from(hex, "hex"));
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i += 1) {
+    out[i] = Number.parseInt(hex.slice(2 * i, 2 * i + 2), 16);
+  }
+  return out;
 }
 
 export function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
@@ -96,5 +107,11 @@ export function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 export function concatBytes(parts: readonly Uint8Array[]): Uint8Array {
-  return new Uint8Array(Buffer.concat(parts));
+  const out = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
 }
