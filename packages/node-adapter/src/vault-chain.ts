@@ -18,7 +18,7 @@ import {
 } from "@concordium/web-sdk";
 import { PAY_ENTRYPOINT, type FinalizationResult, type VaultChain } from "@claw-pay-concordium/x402-vault";
 
-import type { NodeClient } from "./node-client.ts";
+import type { NodeClient } from "./testnet-guard.ts";
 import { vaultEventsFromTrace } from "./trace.ts";
 import { readVaultView } from "./vault-view.ts";
 

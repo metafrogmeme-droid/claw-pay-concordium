@@ -30,8 +30,7 @@ import {
 import type { Transaction } from "@concordium/web-sdk/transactions";
 import { fromHex } from "@claw-pay-concordium/verifier";
 
-import type { NodeClient } from "./node-client.ts";
-import { TESTNET_GENESIS_PREFIX } from "./node-client.ts";
+import { TESTNET_GENESIS_PREFIX, type NodeClient } from "./testnet-guard.ts";
 
 const VIEW_FIXTURE = fileURLToPath(new URL("../../../fixtures/vault-view.v1.json", import.meta.url));
 

@@ -16,7 +16,7 @@ import {
 } from "@concordium/web-sdk";
 import { ByteReader } from "@claw-pay-concordium/verifier";
 
-import type { NodeClient } from "./node-client.ts";
+import type { NodeClient } from "./testnet-guard.ts";
 
 export const VAULT_VIEW_LENGTH = 161;
 export const VIEW_ENTRYPOINT = "guard_vault.view";

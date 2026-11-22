@@ -1,9 +1,9 @@
-# Threat model v0.10
+# Threat model v0.11
 
 HUMANOID-TRADERS · RUNECLAW, Patrick Baur, CEO
 
 **Product:** Claw Pay for Concordium
-**Version:** 0.10
+**Version:** 0.11
 **Date:** 22 Nov 2026 (Europe/Amsterdam)
 **Network:** Concordium testnet only. No mainnet, no real funds.
 
@@ -11,6 +11,10 @@ This is a working model for the draft PRs. It will be revised as the x402 flow a
 
 ## Changes
 
+- **v0.11 (PR 6a):**
+  - The verifier page is in `packages/verifier-page`. It runs the same checks as `claw-pay-verify` in the reader's browser, either on an events file or on events read live from a testnet node over gRPC-web, behind the genesis guard.
+  - The verifier library no longer uses Node built-ins: SHA-256 now comes from `@noble/hashes`.
+  - Adds the "verifier page" threat.
 - **v0.10 (PR 5d):**
   - The testnet demo is in `packages/demo`: `claw-pay-seller` and `claw-pay-agent`, with the runbook in `docs/testnet-demo.md`.
   - The seller duties of the `vault-exact` scheme are implemented in the demo seller's invoice book: one invoice per `402`, bound to its path, single-use, expiring, and the offer unchanged.
@@ -159,6 +163,7 @@ Each invariant is covered by contract tests. The names below are the test names 
 | Wrong network | The client is pointed at mainnet by mistake. | The client refuses any network other than `testnet`: `assertTestnet` runs first in `loadConfig`, before any file is read. The key file must also be a `testnet` wallet export. The x402 facilitator serves one configured network and refuses requirements for any other (`unsupported_network`). The node adapter refuses any node whose genesis block isn't testnet's (`connectTestnetNode`). Throwaway keys must never be funded on mainnet. |
 | Unfinalized receipts | The verifier counts a receipt from a block that is later dropped. | `claw-pay-export` never reads above the last finalized height. It reads `view` at the same last block, so the events and the head are one snapshot. The verifier checks whatever events file it is given, so the file must come from a node the reader trusts. |
 | Node lies or omits events | The node used for the export hides receipts, or reports a false view. | If events are omitted, the verifier's head check fails, but only while the view is honest. A node that fakes both can't be caught from its own data. Use a node you trust or run, re-export from a second node, or cross-check the head and receipts on CCDExplorer. |
+| Verifier page | The page shows a false result, runs injected code, or leaks something. | The page runs in the reader's browser, holds no keys and only reads. Its CSP allows scripts from the page itself only (`script-src 'self' 'wasm-unsafe-eval'`). `'wasm-unsafe-eval'` lets the web-sdk compile its bundled Rust bindings, and does not allow JavaScript `eval`. Data from files or nodes is rendered as text, never as HTML. The local server serves only the page's own files, on 127.0.0.1. **Live mode** trusts the chosen node exactly as `claw-pay-export` does: it refuses a non-testnet genesis, needs https (plain http only on loopback), and reads finalized blocks only. **Offline**, a file is only as trustworthy as its source. The committed bundle is rebuilt in CI and must match byte for byte. |
 | Incomplete export range | The export starts after the vault's init, or stops early. | The verifier refuses it: the receipt chain no longer starts at zero, or no longer ends at the view's head. |
 | Module provenance | The module deployed on testnet is not the one built from the reviewed commit. | `claw-pay-owner deploy` computes the module reference from the file before sending. It reports success only if the chain's `ModuleDeployed` reference matches. Publish that reference with the source commit. PR 6 considers a `cargo-concordium` verifiable build on the operator box. |
 | Hostile or changed card host | The host at `agent_uri` serves a card that differs from the one the owner reviewed, or changes it later. | The badge check accepts a card only if its SHA-256 equals the on-chain `metadata_hash`, so a swapped card fails. If the provider later changes its card and registry hash, the vault refuses payments (`CardHashMismatch`) until the owner re-checks and re-approves. |

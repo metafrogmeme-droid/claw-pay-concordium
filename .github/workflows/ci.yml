@@ -103,3 +103,5 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
+      - name: Verifier page is up to date
+        run: npm run build:page && git diff --exit-code -- packages/verifier-page/site

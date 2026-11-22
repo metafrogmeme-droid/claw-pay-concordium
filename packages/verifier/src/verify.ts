@@ -11,7 +11,7 @@
  * the contract checks a payment.
  */
 
-import { createHash } from "node:crypto";
+import { sha256 as nobleSha256 } from "@noble/hashes/sha2";
 
 import { DecodeError, equalBytes, toHex } from "./bytes.ts";
 import type { EventsFile } from "./events-file.ts";
@@ -68,8 +68,9 @@ interface Rules {
   providers: Map<bigint, Uint8Array>;
 }
 
-function sha256(bytes: Uint8Array): Uint8Array {
-  return new Uint8Array(createHash("sha256").update(bytes).digest());
+/** SHA-256 from @noble/hashes (audited, synchronous, runs in Node and browsers). */
+export function sha256(bytes: Uint8Array): Uint8Array {
+  return nobleSha256(bytes);
 }
 
 export function verify(file: EventsFile): Report {

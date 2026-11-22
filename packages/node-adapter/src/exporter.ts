@@ -14,7 +14,7 @@
 import { BlockHash, type ContractAddress } from "@concordium/web-sdk";
 import { EVENTS_FILE_FORMAT, toHex } from "@claw-pay-concordium/verifier";
 
-import type { NodeClient } from "./node-client.ts";
+import type { NodeClient } from "./testnet-guard.ts";
 import { vaultEventsFromSummary } from "./trace.ts";
 import { readVaultView } from "./vault-view.ts";
 

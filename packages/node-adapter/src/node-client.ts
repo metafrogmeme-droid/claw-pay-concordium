@@ -1,54 +1,24 @@
 /**
- * The Concordium node this package talks to, and the testnet guard.
+ * Connecting to a Concordium node from Node.js (the operator box).
  *
- * `NodeClient` is the narrow part of the SDK's gRPC client this package uses,
- * so tests can inject a fake. `connectTestnetNode` makes the real client (on
- * the operator box only) and refuses any node whose genesis block is not
- * Concordium testnet's, before anything else is asked of it.
+ * `connectTestnetNode` makes the real gRPC client and refuses any node whose
+ * genesis block is not Concordium testnet's, before anything else is asked
+ * of it. The guard and the `NodeClient` type live in testnet-guard.ts, which
+ * has no Node-only imports.
  */
 
-import { BlockHash, type ConcordiumGRPCClient } from "@concordium/web-sdk";
 import { ConcordiumGRPCNodeClient, credentials } from "@concordium/web-sdk/nodejs";
 
-export type NodeClient = Pick<
-  ConcordiumGRPCClient,
-  | "getAccountInfo"
-  | "getNextAccountNonce"
-  | "invokeContract"
-  | "sendTransaction"
-  | "waitForTransactionFinalization"
-  | "getConsensusStatus"
-  | "getBlocksAtHeight"
-  | "getBlockTransactionEvents"
->;
+import { assertTestnetNode, type NodeClient } from "./testnet-guard.ts";
 
-/**
- * Concordium testnet's genesis block hash starts with this: the reference
- * in the CAIP-2 network id `ccd:4221332d34e1694168c2a0c0b3fd0f27`.
- */
-export const TESTNET_GENESIS_PREFIX = "4221332d34e1694168c2a0c0b3fd0f27";
+export { TESTNET_GENESIS_PREFIX, WrongNetworkError, assertTestnetNode } from "./testnet-guard.ts";
+export type { NodeClient } from "./testnet-guard.ts";
 
 export const NODE_VAR = "CLAW_PAY_NODE";
-
-/** Thrown when the node is not on Concordium testnet. */
-export class WrongNetworkError extends Error {
-  override name = "WrongNetworkError";
-}
 
 /** Thrown when `CLAW_PAY_NODE` is missing or malformed. */
 export class NodeAddressError extends Error {
   override name = "NodeAddressError";
-}
-
-/** Refuse unless the node's genesis block is Concordium testnet's. */
-export async function assertTestnetNode(client: Pick<NodeClient, "getConsensusStatus">): Promise<void> {
-  const status = await client.getConsensusStatus();
-  const genesis = BlockHash.toHexString(status.genesisBlock);
-  if (!genesis.startsWith(TESTNET_GENESIS_PREFIX)) {
-    throw new WrongNetworkError(
-      `the node's genesis block ${genesis} is not Concordium testnet's; Claw Pay for Concordium runs on testnet only`,
-    );
-  }
 }
 
 /** Parse `host:port`. IPv6 literals are not supported. */

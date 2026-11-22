@@ -16,7 +16,7 @@ Limits live in a Rust smart contract (`GuardVault`). The owner alone can change 
 
 ## Status
 
-In progress. The vault contract enforces caps, owner-only rules, a pause, replay protection, a registry-checked provider allowlist and hash-linked receipts. A verifier CLI rebuilds and checks the receipt chain from the vault's events alone. A badge-check tool self-verifies a provider's Agent Card before the owner allowlists it. An x402 scheme, `vault-exact`, lets sellers charge an agent through its vault: the spec, agent client and facilitator are in, tested offline. The agent client pays only when its spend-policy, replay-guard and capped signer all agree, and it keeps a hash-linked local receipt log. A node adapter connects the facilitator and client to a testnet node (refusing any other network), exports the vault's finalized events for the verifier, and reconciles the local log against the chain. An owner CLI runs every owner step on testnet: a dry run by default, sending only with `--send`. A demo x402 seller and agent CLI complete the end-to-end flow, with a step-by-step testnet runbook for the operator box. The verifier page and the path to production land in the last draft pull request. Nothing here is production-ready, and nothing should be pointed at mainnet.
+In progress. The vault contract enforces caps, owner-only rules, a pause, replay protection, a registry-checked provider allowlist and hash-linked receipts. A verifier CLI rebuilds and checks the receipt chain from the vault's events alone. A badge-check tool self-verifies a provider's Agent Card before the owner allowlists it. An x402 scheme, `vault-exact`, lets sellers charge an agent through its vault: the spec, agent client and facilitator are in, tested offline. The agent client pays only when its spend-policy, replay-guard and capped signer all agree, and it keeps a hash-linked local receipt log. A node adapter connects the facilitator and client to a testnet node (refusing any other network), exports the vault's finalized events for the verifier, and reconciles the local log against the chain. An owner CLI runs every owner step on testnet: a dry run by default, sending only with `--send`. A demo x402 seller and agent CLI complete the end-to-end flow, with a step-by-step testnet runbook for the operator box. A verifier page runs the same receipt checks in a browser, on an exported file or read live from a testnet node. The architecture and path-to-production write-ups land in the last draft pull request. Nothing here is production-ready, and nothing should be pointed at mainnet.
 
 ## Layout
 
@@ -30,6 +30,7 @@ In progress. The vault contract enforces caps, owner-only rules, a pause, replay
 | `packages/node-adapter/` | Live testnet connection: node guard, vault view, gRPC `VaultChain`/`AgentChain`, `claw-pay-export` for finalized events, and log reconcile |
 | `packages/owner-cli/` | `claw-pay-owner`: the vault owner's testnet CLI (deploy, init, deposit, caps, agent, pause, allowlist, withdraw, view), dry run unless `--send` |
 | `packages/demo/` | Testnet demo: `claw-pay-seller` (x402 seller, invoice book, in-process facilitator) and `claw-pay-agent` |
+| `packages/verifier-page/` | The verifier page: the receipt checks in a browser, on an events file or live from a testnet node (built page in `site/`) |
 | `packages/x402-vault/` | x402 `vault-exact` scheme: agent client and facilitator for payments through `GuardVault` |
 | `docs/` | The `vault-exact` x402 scheme spec and the testnet demo runbook |
 | `fixtures/` | Golden vault events, vault view, registry replies, `pay` and owner parameters and reject codes, produced by the contract tests and read by the TypeScript tests |
@@ -83,6 +84,14 @@ Check the example registry agent's badge against the example card:
 ```bash
 node packages/badge-check/src/cli.ts fixtures/agent-views.v1.json --token 10 --card fixtures/agent-card.example.json
 ```
+
+## Check receipts in the browser
+
+```bash
+npm run serve:page
+```
+
+Then open http://127.0.0.1:8080 and load the sample, an events file from `claw-pay-export`, or read a vault live from a testnet node. See [`packages/verifier-page/README.md`](packages/verifier-page/README.md).
 
 ## Run the testnet demo
 
