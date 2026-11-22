@@ -4,7 +4,7 @@ import { describe, test } from "node:test";
 import { AccountAddress, AccountTransactionType, ContractAddress, Parameter } from "@concordium/web-sdk";
 import { Transaction } from "@concordium/web-sdk/transactions";
 
-import { VaultExactClient, createVaultPayment, type AgentContext } from "./client.ts";
+import { VaultExactClient, createVaultPayment, signWith, type AgentContext } from "./client.ts";
 import { CONCORDIUM_TESTNET, decodePayParams, invoiceHash, newRequirements, parseRequirements } from "./scheme.ts";
 import { addressOf, ephemeralAccount } from "./test-support.ts";
 
@@ -17,7 +17,7 @@ function agentContext(): AgentContext {
   return {
     vault: VAULT,
     agent: agentKey.address,
-    signer: agentKey.signer,
+    sign: signWith(agentKey.signer),
     energy: 30_000n,
     vaultNonce: () => Promise.resolve(5n),
     accountSequence: () => Promise.resolve(17n),

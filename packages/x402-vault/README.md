@@ -14,6 +14,7 @@ The full spec, with every verification rule, is in [`docs/x402-vault-scheme.md`]
 | `src/client.ts` | `createVaultPayment` and `VaultExactClient` (an `@x402/core` `SchemeNetworkClient`). Builds and signs the agent's sponsored `guard_vault.pay` transaction. |
 | `src/facilitator.ts` | `VaultExactFacilitator` (an `@x402/core` `SchemeNetworkFacilitator`). Verifies, co-signs as sponsor, submits and confirms the receipt. |
 | `src/chain.ts` | The `VaultChain` interface the facilitator needs from a node. Interface only. |
+| `src/test-support.ts` | **Test-only** helpers (in-memory `FakeChain`, ephemeral accounts, payment builder), exported as `./test-support` for other packages' offline tests. |
 
 Dependencies, pinned exactly and installed with `--ignore-scripts`:
 - `@concordium/web-sdk` 12.0.2,
@@ -39,12 +40,12 @@ Each call gets a fresh `invoiceId`. Remember which resource it was issued for, a
 ## Agent: pay
 
 ```ts
-import { VaultExactClient } from "@claw-pay-concordium/x402-vault";
+import { VaultExactClient, signWith } from "@claw-pay-concordium/x402-vault";
 
 const client = new VaultExactClient({
   vault, // the agent's GuardVault ContractAddress
   agent, // the agent AccountAddress
-  signer, // AccountSigner for the agent key, loaded on the operator box only
+  sign: signWith(signer), // or the agent client's capped signer; the key is loaded on the operator box only
   energy: 30_000n,
   vaultNonce: readVaultNextNonce, // () => Promise<bigint>, from the vault's view
   accountSequence: readAgentSequence, // () => Promise<bigint>, the agent account's next nonce
@@ -52,6 +53,8 @@ const client = new VaultExactClient({
 ```
 
 `client.createPaymentPayload(2, requirements)` returns the x402 payload.
+
+Signing takes a `TransactionSigner`, which sees the whole transaction before the key is used. `signWith(accountSigner)` signs anything. The agent client wraps the key in a capped signer instead: it refuses anything but a capped `pay` on the agent's own vault.
 
 ## Facilitator: verify and settle
 

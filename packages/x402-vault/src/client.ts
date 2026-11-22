@@ -2,6 +2,10 @@
  * Agent side of `vault-exact`: turn x402 payment requirements into a
  * sponsored V1 `UpdateContract` that calls `guard_vault.pay`, signed by the
  * agent key. The facilitator adds the sponsor signature and submits it.
+ *
+ * Signing goes through a `TransactionSigner`, which sees the whole
+ * transaction, so a wrapper (the agent client's capped signer) can refuse
+ * anything it is not allowed to sign before the key is used.
  */
 
 import {
@@ -30,13 +34,21 @@ import {
   parseRequirements,
 } from "./scheme.ts";
 
+/** Signs a whole transaction as its sender, and may refuse. */
+export type TransactionSigner = (transaction: Transaction.Signable) => Promise<Transaction.Signable>;
+
+/** A `TransactionSigner` that signs anything with `signer`, with no checks. */
+export function signWith(signer: AccountSigner): TransactionSigner {
+  return (transaction) => Transaction.sign(transaction, signer);
+}
+
 export interface AgentContext {
   /** The agent's GuardVault instance. */
   vault: ContractAddress.Type;
   /** The vault's agent account (the transaction sender). */
   agent: AccountAddress.Type;
-  /** Signs with the agent key. Never stored by this package. */
-  signer: AccountSigner;
+  /** Signs as the agent. Never stored by this package beyond the context. */
+  sign: TransactionSigner;
   /** Maximum execution energy for the `pay` call. */
   energy: bigint;
   /** The vault's next nonce (from its `view`). */
@@ -78,7 +90,7 @@ export async function createVaultPayment(
     })
     .addSponsor(AccountAddress.fromBase58(offer.feePayer))
     .build();
-  const signed = await Transaction.sign(signable, agent.signer);
+  const signed = await agent.sign(signable);
   return { signedTransaction: toJsonSafe(Transaction.toJSON(signed)) };
 }
 

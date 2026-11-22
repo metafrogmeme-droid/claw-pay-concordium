@@ -1,9 +1,9 @@
-# Threat model v0.6
+# Threat model v0.7
 
 HUMANOID-TRADERS · RUNECLAW, Patrick Baur, CEO
 
 **Product:** Claw Pay for Concordium
-**Version:** 0.6
+**Version:** 0.7
 **Date:** 22 Nov 2026 (Europe/Amsterdam)
 **Network:** Concordium testnet only. No mainnet, no real funds.
 
@@ -11,6 +11,15 @@ This is a working model for the draft PRs. It will be revised as the x402 flow a
 
 ## Changes
 
+- **v0.7 (PR 5a):**
+  - The agent client's second layer is implemented in `packages/agent-client`:
+    - spend-policy `decide`,
+    - replay-guard,
+    - capped-signer, the only holder of the agent key,
+    - a hash-linked local receipt log.
+  - `assertTestnet` is wired in at start-up. The agent key is loaded from a mode-600 testnet wallet export named by `CLAW_PAY_AGENT_KEY_FILE`.
+  - The "seller names another provider" mitigation is implemented: the policy maps each origin to its provider.
+  - Adds threats for key-file exposure, local receipt-log tampering or loss, a seller misreporting settlement, and a compromised client process.
 - **v0.6 (PR 4b):**
   - Specifies the `vault-exact` x402 scheme (`docs/x402-vault-scheme.md`) and implements decision 8 in the facilitator spike (`packages/x402-vault`). Each limit has its own refusal reason and test.
   - Adds the seller and the facilitator to the trust boundaries, and the sponsor account to the assets.
@@ -66,7 +75,7 @@ Decisions of 22 Nov 2026:
 - **Providers:** CIS-8004 Agent Registry agents that the owner allowlisted with an approved card hash. The vault re-checks each one against the registry on every payment.
 - **Agent Registry:** the CIS-8004 contract named at init. The vault trusts its replies about status, card hash and wallet. Its address cannot change for the vault's lifetime.
 - **Chain:** `GuardVault` and its events are the source of truth. Off-chain logs are not.
-- **Operator box:** the machine that holds the throwaway testnet keys (mode 600, loaded from environment variables). It runs every deploy and live testnet step, and confirms the official registry address. Development and CI environments hold no keys.
+- **Operator box:** the machine that holds the throwaway testnet keys, as mode-600 wallet-export files named by environment variables. The agent client refuses a key file that group or others can access, or that is not a testnet export. It runs every deploy and live testnet step, and confirms the official registry address. Development and CI environments hold no keys.
 - **CI and dependencies:** GitHub Actions runners, crates.io, npm, and pinned tool binaries from GitHub releases. CI runs with read-only repository permissions and no secrets, and it never deploys.
 - **Seller (x402 resource server):** an allowlisted registry agent that answers `402` with `vault-exact` requirements. It is untrusted by the agent: whatever it asks for, the vault pays only allowlisted providers within the caps.
 - **Facilitator (x402):** verifies and settles payments for sellers, and holds the sponsor key, which pays transaction fees only. It cannot change what the agent signed. It can refuse, delay or misreport (see threats).
@@ -106,7 +115,7 @@ Each invariant is covered by contract tests. The names below are the test names 
 |---|---|---|
 | Agent key compromise | An attacker uses the agent key to drain funds or change policy. | Loss is capped at the daily cap per UTC day: up to 2× across midnight (see cap-window boundary). It can only go to allowlisted, registry-verified providers. The agent key cannot change rules, the allowlist or the pause. The owner pauses and rotates the key with `set_agent`. |
 | Limit bypass | A payment exceeds the per-tx or per-day cap, or ignores a pause. | Caps, allowlist and pause are enforced in the contract, not in the agent. |
-| Replay | A valid `pay` is submitted twice, or an old invoice is reused. | `pay` must use the next `nonce` in sequence and an `invoice_hash` never paid before. Both are checked on chain. Spend-policy, replay-guard and capped-signer logic in the client are a second layer, not the source of truth. |
+| Replay | A valid `pay` is submitted twice, or an old invoice is reused. | `pay` must use the next `nonce` in sequence and an `invoice_hash` never paid before. Both are checked on chain. In the client, replay-guard refuses to sign a reused invoice or a stale nonce. It is a second layer, not the source of truth. |
 | Provider spoofing | Payment is sent to an unapproved or impersonated provider. | Only allowlisted registry agents can be paid. Before approving one, the owner runs `claw-pay-badge-check`, which fetches the card and checks its hash against the registry (decision 9). On every payment, the registry must report the agent Active with the approved card hash, and the money goes to its registered wallet. |
 | Receipt forgery | A fake receipt is presented off chain. | Receipts are contract events. Each hash covers the previous one, and the head is in contract state. `claw-pay-verify` rebuilds the chain from the vault's events alone: it recomputes every hash, follows the links, replays the owner's rules against every payment, and requires the chain to end at the contract's head. A forged chain that is consistent with itself still fails the rule replay or the head check. |
 | Receipt splicing | Receipts from another vault are mixed into this vault's chain. | The vault's own address is part of every hashed body, so foreign receipts fail the hash or link check. |
@@ -124,8 +133,8 @@ Each invariant is covered by contract tests. The names below are the test names 
 | No upgrade path | A bug is found in the deployed contract and cannot be patched in place (decision 2). | The owner pauses, withdraws everything (`withdraw` works while paused) and funds a fixed instance. `withdraw` and `set_paused` are covered by tests. |
 | Mock registry deployed | The test-only `mock-agent-registry`, which anyone can rewrite, is used as the registry. | It is marked test-only in its crate docs, README and package description. It is never part of a deploy, and the operator box uses the official registry address (see wrong registry address). |
 | Supply-chain compromise | A malicious crate or npm package, a tampered tool binary or a compromised CI action runs in the build. | Lockfiles are committed and enforced in CI (`--locked`, `npm ci`). npm install scripts are disabled. Dependencies are few and exactly pinned. CI uses first-party GitHub actions only, read-only permissions and no secrets. `cargo-concordium` is pinned and checked against its sha256. The gitleaks binary is version-pinned but not yet checksum-verified (follow-up). |
-| Secret leakage | A key, seed phrase or wallet export is committed or printed in logs. | gitleaks runs on every push and pull request over the full history. `.gitignore` covers key files and wallet exports. Keys are loaded from environment variables on the operator box only. CI and development environments hold no keys. |
-| Wrong network | The client is pointed at mainnet by mistake. | The client refuses any network other than `testnet` (`assertTestnet`, wired in at start-up in PR 5). The x402 facilitator serves one configured network and refuses requirements for any other (`unsupported_network`). Throwaway keys must never be funded on mainnet. |
+| Secret leakage | A key, seed phrase or wallet export is committed or printed in logs. | gitleaks runs on every push and pull request over the full history. `.gitignore` covers key files and wallet exports. On the operator box, the agent key is a mode-600 wallet-export file named by an environment variable. The key itself is never in the environment. The client's errors never echo the file's contents. CI and development environments hold no keys, and tests generate throwaway keys in memory only. |
+| Wrong network | The client is pointed at mainnet by mistake. | The client refuses any network other than `testnet`: `assertTestnet` runs first in `loadConfig`, before any file is read. The key file must also be a `testnet` wallet export. The x402 facilitator serves one configured network and refuses requirements for any other (`unsupported_network`). Throwaway keys must never be funded on mainnet. |
 | Unfinalized receipts | The verifier counts a receipt from a block that is later dropped. | The live exporter (PR 5) reads finalized blocks only. The verifier checks whatever events file it is given, so the file must come from a node the reader trusts. |
 | Module provenance | The module deployed on testnet is not the one built from the reviewed commit. | Publish the module reference with the source commit. PR 6 considers a `cargo-concordium` verifiable build on the operator box. |
 | Hostile or changed card host | The host at `agent_uri` serves a card that differs from the one the owner reviewed, or changes it later. | The badge check accepts a card only if its SHA-256 equals the on-chain `metadata_hash`, so a swapped card fails. If the provider later changes its card and registry hash, the vault refuses payments (`CardHashMismatch`) until the owner re-checks and re-approves. |
@@ -133,12 +142,16 @@ Each invariant is covered by contract tests. The names below are the test names 
 | Operator fetches an untrusted URL | `agent_uri` points somewhere the operator box should not fetch. | The badge check is run by hand, fetches HTTPS only, follows no redirects, and sends no credentials. Cards can also be downloaded separately and checked with `--card`. |
 | Sponsor fee griefing (x402) | An agent, or someone holding its key, submits sponsored payments that fail on chain, so the facilitator pays fees for nothing. | Decision 8: dry-run first and refuse failures, sponsor only `pay` on the configured vaults, a 60 s expiry cap, and one in-flight payment per sender. Implemented in `packages/x402-vault` (PR 4b): each limit has its own `invalidReason` and test. A payment can still fail between the dry run and execution (a pause, or a race), which costs one fee. |
 | x402 payload replay | A captured `vault-exact` payload is submitted again, to the same or another facilitator. | The vault accepts each `nonce` and `invoice_hash` once (INV-6), and the transaction expires within 60 s. The dry run refuses a replay before the sponsor signs. |
-| Seller names another provider (x402) | A hostile server's `402` names a different allowlisted provider, so the agent pays someone other than the server it called. | The vault pays only providers the owner allowlisted, within the caps, and the receipt names the provider. The PR 5 agent client checks that the offered provider matches the server it meant to pay. |
+| Seller names another provider (x402) | A hostile server's `402` names a different allowlisted provider, so the agent pays someone other than the server it called. | The vault pays only providers the owner allowlisted, within the caps, and the receipt names the provider. The agent client's spend-policy maps each origin to its provider, and optionally its wallet. It refuses a mismatched offer (`provider_mismatch`, `payto_mismatch`) before anything is signed. The origin comes from the URL the agent requested, never from the seller's `resource.url`. |
 | Payee substitution (x402) | The requirements name a `payTo` that is not the provider's wallet, or the payment lands somewhere else. | `provider`, `payTo` and `invoiceId` are inside the invoice hash. The facilitator requires the dry-run and final receipts to show `payTo` as payee. The vault pays only the registry `agent_wallet` (INV-11). |
 | Resource swap (x402) | A payment made for one resource is used to get another. | x402 does not give the client scheme the resource, so the URL is not in the invoice hash. The seller issues a fresh `invoiceId` for each `402` answer, serves only the resource it was issued for, and the vault pays each invoice once. A seller that ignores this duty can be tricked; the spec lists it as a seller duty. |
 | Facilitator misbehaviour (x402) | The facilitator alters, withholds or misreports a payment. | The agent's signature covers the vault, entrypoint, parameter and expiry, so the sponsor cannot change them. It can refuse or delay until expiry (at most 60 s). A seller can confirm the receipt itself with `claw-pay-verify`. |
 | Energy griefing (x402) | An agent asks the sponsor to pay for a huge execution-energy allowance. | The facilitator refuses energy above its configured cap (`energy_too_high`). |
 | Settlement timeout (x402) | `settle` times out, but the transaction finalizes later, so the agent paid and the seller did not serve. | The seller does not serve on a timeout. The transaction can finalize only until its expiry (at most 60 s). The receipt is public, so the seller can reconcile by invoice hash, and the invoice cannot be paid twice. Automatic reconciliation is not built yet. |
+| Key file exposure | The agent's wallet export is readable by other users, or is a mainnet export. | `loadAgentKey` checks permissions before reading. It refuses group or other access, another owner and a non-testnet export. |
+| Local receipt log tampering or loss | Someone edits, reorders or deletes the agent's local log to hide spending or replay an invoice. | Each line is hash-linked to the one before and re-verified on open. An edited, reordered or mid-truncated log is refused. The file is created mode 600, and a log writable by group or others is refused. Dropping lines from the end can't be seen locally. The log is a second layer only: the vault's on-chain receipts are the truth, and PR 5b reconciles the log against them. |
+| Seller misreports settlement (x402) | The seller says a payment failed although it landed, so the client's daily total runs low. | The client counts every signed payment as spent unless the reported failure means nothing moved. Timeouts and unknown outcomes count. The vault's own caps hold whatever the client believes. Reconciling against the chain is PR 5b. |
+| Compromised client process | Malware or a bug in the agent process tries to make the key sign something else. | The capped signer holds the key and signs only a sponsored `guard_vault.pay` from the agent, on its own vault, within the per-payment and energy caps and a 60 s expiry. The vault's caps and allowlist bound anything that is signed. Code running as the operator's user can still read the key file: see residual risk. |
 
 ## Open decisions
 
@@ -172,6 +185,8 @@ Mainnet, real funds, KYC, paid services, EVM and PayPal. Admin, keeper or off-ch
 A compromised owner key can do everything the owner can. It can change caps, rotate the agent, pause, and allowlist providers. It can also withdraw the whole vault balance: `withdraw` pays only the owner's account, but the attacker then controls that account. Caps bound loss from an agent-key compromise, not from an owner-key compromise. Testnet keys must stay throwaway, uncommitted, and mode 600 on the operator box.
 
 The vault trusts the registry named at init. A compromised or wrong registry could approve any agent and wallet. Caps and the pause still bound the loss per day.
+
+Code running as the operator's user can read the agent key file. The capped signer then no longer applies, but the vault's caps, allowlist and pause still bound the loss, as for an agent-key compromise.
 
 A compromised sponsor key can spend the sponsor account's test CCD on fees, but cannot move vault funds or sign as the agent.
 
