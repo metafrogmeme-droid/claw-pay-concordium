@@ -1,4 +1,4 @@
-export { DecodeError, fromHex, toHex } from "./bytes.ts";
+export { ByteReader, DecodeError, equalBytes, fromHex, toHex } from "./bytes.ts";
 export {
   HASH_LENGTH,
   RECEIPT_BODY_LENGTH,
