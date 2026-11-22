@@ -241,7 +241,7 @@ export function goldenEventsJson(): { vault: { index: number; subindex: number }
  * entry, and several updates in one block. The view at height 110 is the
  * fixture's; the "latest" view differs, to show the export reads at 110.
  */
-export function goldenChain(): { node: FakeNode; vault: ContractAddress.Type; events: Uint8Array[] } {
+export function goldenChain(options: { lastFinalizedHeight?: bigint } = {}): { node: FakeNode; vault: ContractAddress.Type; events: Uint8Array[] } {
   const golden = goldenEventsJson();
   const vault = ContractAddress.create(golden.vault.index, golden.vault.subindex);
   const registry = ContractAddress.create(0, 0);
@@ -270,7 +270,7 @@ export function goldenChain(): { node: FakeNode; vault: ContractAddress.Type; ev
   const blocks: FakeBlock[] = items.map((blockItems, i) => ({ height: BigInt(100 + i), hash: blockHash(100 + i), items: blockItems }));
   const node = fakeNode({
     blocks,
-    lastFinalizedHeight: 110n,
+    lastFinalizedHeight: options.lastFinalizedHeight ?? 110n,
     views: new Map([
       [BlockHash.toHexString(blockHash(110)), fromHex(viewFixture().bytes)],
       ["latest", viewBytes({ nextNonce: 99n })],

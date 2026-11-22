@@ -23,8 +23,13 @@ describe("exportVaultEvents", () => {
   });
 
   test("never reads beyond the last finalized height", async () => {
-    const { node, vault } = goldenChain();
-    await assert.rejects(exportVaultEvents({ client: node, vault, fromHeight: 100n, toHeight: 111n }), ExportError);
+    // Blocks 109 and 110 exist but are not finalized yet.
+    const { node, vault } = goldenChain({ lastFinalizedHeight: 108n });
+    await assert.rejects(exportVaultEvents({ client: node, vault, fromHeight: 100n, toHeight: 110n }), /above the last finalized height 108/);
+    const seen: bigint[] = [];
+    const result = await exportVaultEvents({ client: node, vault, fromHeight: 100n, onBlock: (h) => seen.push(h) });
+    assert.equal(result.toHeight, 108n);
+    assert.equal(seen.at(-1), 108n);
     await assert.rejects(exportVaultEvents({ client: node, vault, fromHeight: 105n, toHeight: 104n }), ExportError);
   });
 
