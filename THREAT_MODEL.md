@@ -1,16 +1,20 @@
-# Threat model v0.4
+# Threat model v0.5
 
 HUMANOID-TRADERS · RUNECLAW, Patrick Baur, CEO
 
 **Product:** Claw Pay for Concordium
-**Version:** 0.4
-**Date:** 21 Nov 2026 (Europe/Amsterdam)
+**Version:** 0.5
+**Date:** 22 Nov 2026 (Europe/Amsterdam)
 **Network:** Concordium testnet only. No mainnet, no real funds.
 
-This is a working model for the draft PRs. It will be revised as the badge check, x402 flow and client land.
+This is a working model for the draft PRs. It will be revised as the x402 flow and client land.
 
 ## Changes
 
+- **v0.5 (PR 4a):**
+  - Records decisions 7 (custom x402 vault scheme), 8 (sponsor fee-griefing limits) and 9 (self-verified badge check). This closes the badge and sponsored-fees open decisions.
+  - Resolves the x402 open verification: vault payments do not fit the standard `exact` scheme.
+  - Adds threats for card hosts, oversized or slow cards, operator fetches and sponsor fee griefing.
 - **v0.4 (PR 3b):**
   - The receipt verifier (`packages/verifier`) re-checks INV-8 off chain, and replays the rules to re-check INV-2 to INV-7 from events alone.
   - Adds the verifier's limits. Notes that the live export, which reads finalized blocks only, arrives in PR 5.
@@ -37,6 +41,16 @@ Patrick's decisions, 21 Nov 2026:
 4. **Providers are paid at account addresses.** `pay` and `withdraw` transfer only to accounts, which run no code. That removes callback risk. (Settled by the PR 2 plan.)
 5. **Registry check when added and on every `pay`.** The vault calls the registry's `agentOf` in `add_provider` and again in every `pay`. A provider revoked or re-carded in the registry is refused at once.
 6. **Payout to `agent_wallet` only.** Payments go to the wallet the registry reports at payment time. The spec calls it the agent's payment address, and setting it needs a signature from that wallet. If no wallet is set, `pay` is refused.
+
+Decisions of 22 Nov 2026:
+
+7. **x402 via a custom vault scheme.** Vault payments do not fit x402's standard Concordium `exact` scheme (see open verification). The seller flow uses a vault-specific scheme on the standard x402 v2 flow, so every paid request still goes through the vault's caps, allowlist and receipts (PR 4b).
+8. **Sponsor fee-griefing limits.** Before co-signing, the facilitator:
+   - dry-runs `guard_vault.pay` as the agent, and refuses if it would reject,
+   - sponsors only `pay` calls on the configured vault,
+   - caps expiry at 60 s,
+   - allows one in-flight payment per sender (PR 4b).
+9. **Badge check is self-verified.** "Verified by Concordium" is checked by fetching the Agent Card from `agent_uri` and comparing its SHA-256 with the registry's `metadata_hash`, together with Active status. No hosted badge service is trusted. `packages/badge-check` does this before the owner approves a card hash with `add_provider`. The vault then re-checks Active status and the card hash on every `pay`.
 
 ## Trust boundaries
 
@@ -83,7 +97,7 @@ Each invariant is covered by contract tests. The names below are the test names 
 | Agent key compromise | An attacker uses the agent key to drain funds or change policy. | Loss is capped at the daily cap per UTC day: up to 2× across midnight (see cap-window boundary). It can only go to allowlisted, registry-verified providers. The agent key cannot change rules, the allowlist or the pause. The owner pauses and rotates the key with `set_agent`. |
 | Limit bypass | A payment exceeds the per-tx or per-day cap, or ignores a pause. | Caps, allowlist and pause are enforced in the contract, not in the agent. |
 | Replay | A valid `pay` is submitted twice, or an old invoice is reused. | `pay` must use the next `nonce` in sequence and an `invoice_hash` never paid before. Both are checked on chain. Spend-policy, replay-guard and capped-signer logic in the client are a second layer, not the source of truth. |
-| Provider spoofing | Payment is sent to an unapproved or impersonated provider. | Only allowlisted registry agents can be paid. On every payment, the registry must report the agent Active with the approved card hash, and the money goes to its registered wallet. Badge check in PR 4. |
+| Provider spoofing | Payment is sent to an unapproved or impersonated provider. | Only allowlisted registry agents can be paid. Before approving one, the owner runs `claw-pay-badge-check`, which fetches the card and checks its hash against the registry (decision 9). On every payment, the registry must report the agent Active with the approved card hash, and the money goes to its registered wallet. |
 | Receipt forgery | A fake receipt is presented off chain. | Receipts are contract events. Each hash covers the previous one, and the head is in contract state. `claw-pay-verify` rebuilds the chain from the vault's events alone: it recomputes every hash, follows the links, replays the owner's rules against every payment, and requires the chain to end at the contract's head. A forged chain that is consistent with itself still fails the rule replay or the head check. |
 | Receipt splicing | Receipts from another vault are mixed into this vault's chain. | The vault's own address is part of every hashed body, so foreign receipts fail the hash or link check. |
 | Cap-window boundary | The window is a fixed UTC day (decision 1). A compromised agent spends the full daily cap just before 00:00 UTC and again just after, which is 2× the daily cap within a millisecond. | Accepted and documented. The worst case is bounded at 2× the daily cap across midnight. The test `inv4_midnight_edge_allows_two_caps_within_a_millisecond` shows the edge. Owners should size the daily cap with that in mind. |
@@ -104,18 +118,23 @@ Each invariant is covered by contract tests. The names below are the test names 
 | Wrong network | The client is pointed at mainnet by mistake. | The client refuses any network other than `testnet` (`assertTestnet`, wired in at start-up in PR 5). Throwaway keys must never be funded on mainnet. |
 | Unfinalized receipts | The verifier counts a receipt from a block that is later dropped. | The live exporter (PR 5) reads finalized blocks only. The verifier checks whatever events file it is given, so the file must come from a node the reader trusts. |
 | Module provenance | The module deployed on testnet is not the one built from the reviewed commit. | Publish the module reference with the source commit. PR 6 considers a `cargo-concordium` verifiable build on the operator box. |
+| Hostile or changed card host | The host at `agent_uri` serves a card that differs from the one the owner reviewed, or changes it later. | The badge check accepts a card only if its SHA-256 equals the on-chain `metadata_hash`, so a swapped card fails. If the provider later changes its card and registry hash, the vault refuses payments (`CardHashMismatch`) until the owner re-checks and re-approves. |
+| Oversized or slow card | A card host answers with a huge body or never finishes. | `fetchCard` stops at 64 KiB and after 10 s, and the check reports the card as unavailable. |
+| Operator fetches an untrusted URL | `agent_uri` points somewhere the operator box should not fetch. | The badge check is run by hand, fetches HTTPS only, follows no redirects, and sends no credentials. Cards can also be downloaded separately and checked with `--card`. |
+| Sponsor fee griefing (x402) | An agent, or someone holding its key, submits sponsored payments that fail on chain, so the facilitator pays fees for nothing. | Decision 8: dry-run first and refuse failures, sponsor only `pay` on the configured vault, a 60 s expiry cap, and one in-flight payment per sender. Implemented and tested in PR 4b. |
 
 ## Open decisions
 
-These are for Patrick, and both are settled in PR 4:
-
-- **Badge:** what the "Verified by Concordium" badge is technically, and how the vault or client should check it. The CIS-8004 spec does not define it.
-- **Sponsored fees:** how the x402 seller flow limits fee griefing against the sponsor.
+None at the moment. The badge and sponsored-fees questions were settled on 22 Nov (decisions 8 and 9).
 
 ## Open verification
 
-- Whether vault payments fit the standard x402 `exact` scheme is unverified until the PR 4 seller spike.
-- The official CIS-8004 registry address on testnet must be confirmed on the operator box before deploy.
+- **x402 `exact` (resolved, 22 Nov).** Vault payments do not fit x402's standard Concordium `exact` scheme.
+  - The spec (`specs/schemes/exact/scheme_exact_concordium.md` in `x402-foundation/x402`) and the official `@x402/concordium` facilitator accept only a `SimpleTransfer` or transfer-with-memo, or a PLT `TokenUpdate`, from the payer's own account. They also require exactly one transfer operation.
+  - A vault payment is a contract update calling `guard_vault.pay`.
+  - Decision 7 follows from this.
+- **Badge definition.** The definition used in decision 9 comes from Concordium's badge documentation as quoted in a third-party package's source; the docs site was not reachable from the build environment. Confirm it against `docs.concordium.com` on the operator box.
+- **Registry address.** The official CIS-8004 registry address on testnet must be confirmed on the operator box before deploy.
 
 ## What the verifier cannot check
 

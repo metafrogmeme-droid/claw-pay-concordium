@@ -16,7 +16,7 @@ Limits live in a Rust smart contract (`GuardVault`). The owner alone can change 
 
 ## Status
 
-In progress. The vault contract enforces caps, owner-only rules, a pause, replay protection, a registry-checked provider allowlist and hash-linked receipts. A verifier CLI rebuilds and checks the receipt chain from the vault's events alone. The badge check, x402 flow, client, demo and verifier page land in later small draft pull requests. Nothing here is production-ready, and nothing should be pointed at mainnet.
+In progress. The vault contract enforces caps, owner-only rules, a pause, replay protection, a registry-checked provider allowlist and hash-linked receipts. A verifier CLI rebuilds and checks the receipt chain from the vault's events alone. A badge-check tool self-verifies a provider's Agent Card before the owner allowlists it. The x402 flow, client, demo and verifier page land in later small draft pull requests. Nothing here is production-ready, and nothing should be pointed at mainnet.
 
 ## Layout
 
@@ -26,7 +26,8 @@ In progress. The vault contract enforces caps, owner-only rules, a pause, replay
 | `contracts/mock-agent-registry/` | Test-only CIS-8004 Agent Registry mock used by the tests. Never deploy. |
 | `packages/agent-client/` | TypeScript agent client; for now only the testnet-only network guard |
 | `packages/verifier/` | `claw-pay-verify`: rebuilds and checks the receipt chain from vault events |
-| `fixtures/` | Golden vault events file, produced by the contract tests and read by the verifier tests |
+| `packages/badge-check/` | `claw-pay-badge-check`: checks a registry agent is Verified by Concordium before it is allowlisted |
+| `fixtures/` | Golden vault events and registry replies, produced by the contract tests and read by the TypeScript tests |
 | `SCOPE.md` | Scope, architecture and plan of pull requests |
 | `THREAT_MODEL.md` | Trust boundaries, invariants, threats and open decisions |
 
@@ -70,6 +71,12 @@ Verify the golden receipt chain with the CLI:
 
 ```bash
 node packages/verifier/src/cli.ts fixtures/vault-events.v1.json
+```
+
+Check the example registry agent's badge against the example card:
+
+```bash
+node packages/badge-check/src/cli.ts fixtures/agent-views.v1.json --token 10 --card fixtures/agent-card.example.json
 ```
 
 ## License
