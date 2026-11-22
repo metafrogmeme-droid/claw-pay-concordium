@@ -1,9 +1,9 @@
-# Threat model v0.7
+# Threat model v0.8
 
 HUMANOID-TRADERS · RUNECLAW, Patrick Baur, CEO
 
 **Product:** Claw Pay for Concordium
-**Version:** 0.7
+**Version:** 0.8
 **Date:** 22 Nov 2026 (Europe/Amsterdam)
 **Network:** Concordium testnet only. No mainnet, no real funds.
 
@@ -11,6 +11,15 @@ This is a working model for the draft PRs. It will be revised as the x402 flow a
 
 ## Changes
 
+- **v0.8 (PR 5b):**
+  - The live connection layer is in `packages/node-adapter`:
+    - a node guard that refuses any node whose genesis block isn't testnet's,
+    - the vault-view decoder,
+    - `VaultChain` and `AgentChain` on gRPC,
+    - `claw-pay-export`, which exports finalized events with the view at the same block,
+    - reconciling the local receipt log against the chain.
+  - The agent client now uses the vault's own `spent_today` as a floor under its local daily total.
+  - Adds threats for a node that lies or omits events, and for an incomplete export range.
 - **v0.7 (PR 5a):**
   - The agent client's second layer is implemented in `packages/agent-client`:
     - spend-policy `decide`,
@@ -79,7 +88,7 @@ Decisions of 22 Nov 2026:
 - **CI and dependencies:** GitHub Actions runners, crates.io, npm, and pinned tool binaries from GitHub releases. CI runs with read-only repository permissions and no secrets, and it never deploys.
 - **Seller (x402 resource server):** an allowlisted registry agent that answers `402` with `vault-exact` requirements. It is untrusted by the agent: whatever it asks for, the vault pays only allowlisted providers within the caps.
 - **Facilitator (x402):** verifies and settles payments for sellers, and holds the sponsor key, which pays transaction fees only. It cannot change what the agent signed. It can refuse, delay or misreport (see threats).
-- **Verifier and node:** the verifier rebuilds the receipt chain from a Concordium node's finalized data, so it trusts that node to report the chain honestly. Anyone can point it at a node they run. CCDExplorer is a convenience view, not the source of truth.
+- **Verifier and node:** the verifier rebuilds the receipt chain from a Concordium node's finalized data, so it trusts that node to report the chain honestly. Anyone can point it at a node they run. CCDExplorer is a convenience view, not the source of truth. The node adapter connects only over TLS. It refuses a node whose genesis block isn't Concordium testnet's before asking it anything else.
 
 ## Assets
 
@@ -134,8 +143,10 @@ Each invariant is covered by contract tests. The names below are the test names 
 | Mock registry deployed | The test-only `mock-agent-registry`, which anyone can rewrite, is used as the registry. | It is marked test-only in its crate docs, README and package description. It is never part of a deploy, and the operator box uses the official registry address (see wrong registry address). |
 | Supply-chain compromise | A malicious crate or npm package, a tampered tool binary or a compromised CI action runs in the build. | Lockfiles are committed and enforced in CI (`--locked`, `npm ci`). npm install scripts are disabled. Dependencies are few and exactly pinned. CI uses first-party GitHub actions only, read-only permissions and no secrets. `cargo-concordium` is pinned and checked against its sha256. The gitleaks binary is version-pinned but not yet checksum-verified (follow-up). |
 | Secret leakage | A key, seed phrase or wallet export is committed or printed in logs. | gitleaks runs on every push and pull request over the full history. `.gitignore` covers key files and wallet exports. On the operator box, the agent key is a mode-600 wallet-export file named by an environment variable. The key itself is never in the environment. The client's errors never echo the file's contents. CI and development environments hold no keys, and tests generate throwaway keys in memory only. |
-| Wrong network | The client is pointed at mainnet by mistake. | The client refuses any network other than `testnet`: `assertTestnet` runs first in `loadConfig`, before any file is read. The key file must also be a `testnet` wallet export. The x402 facilitator serves one configured network and refuses requirements for any other (`unsupported_network`). Throwaway keys must never be funded on mainnet. |
-| Unfinalized receipts | The verifier counts a receipt from a block that is later dropped. | The live exporter (PR 5) reads finalized blocks only. The verifier checks whatever events file it is given, so the file must come from a node the reader trusts. |
+| Wrong network | The client is pointed at mainnet by mistake. | The client refuses any network other than `testnet`: `assertTestnet` runs first in `loadConfig`, before any file is read. The key file must also be a `testnet` wallet export. The x402 facilitator serves one configured network and refuses requirements for any other (`unsupported_network`). The node adapter refuses any node whose genesis block isn't testnet's (`connectTestnetNode`). Throwaway keys must never be funded on mainnet. |
+| Unfinalized receipts | The verifier counts a receipt from a block that is later dropped. | `claw-pay-export` never reads above the last finalized height. It reads `view` at the same last block, so the events and the head are one snapshot. The verifier checks whatever events file it is given, so the file must come from a node the reader trusts. |
+| Node lies or omits events | The node used for the export hides receipts, or reports a false view. | If events are omitted, the verifier's head check fails, but only while the view is honest. A node that fakes both can't be caught from its own data. Use a node you trust or run, re-export from a second node, or cross-check the head and receipts on CCDExplorer. |
+| Incomplete export range | The export starts after the vault's init, or stops early. | The verifier refuses it: the receipt chain no longer starts at zero, or no longer ends at the view's head. |
 | Module provenance | The module deployed on testnet is not the one built from the reviewed commit. | Publish the module reference with the source commit. PR 6 considers a `cargo-concordium` verifiable build on the operator box. |
 | Hostile or changed card host | The host at `agent_uri` serves a card that differs from the one the owner reviewed, or changes it later. | The badge check accepts a card only if its SHA-256 equals the on-chain `metadata_hash`, so a swapped card fails. If the provider later changes its card and registry hash, the vault refuses payments (`CardHashMismatch`) until the owner re-checks and re-approves. |
 | Oversized or slow card | A card host answers with a huge body or never finishes. | `fetchCard` stops at 64 KiB and after 10 s, and the check reports the card as unavailable. |
@@ -149,8 +160,8 @@ Each invariant is covered by contract tests. The names below are the test names 
 | Energy griefing (x402) | An agent asks the sponsor to pay for a huge execution-energy allowance. | The facilitator refuses energy above its configured cap (`energy_too_high`). |
 | Settlement timeout (x402) | `settle` times out, but the transaction finalizes later, so the agent paid and the seller did not serve. | The seller does not serve on a timeout. The transaction can finalize only until its expiry (at most 60 s). The receipt is public, so the seller can reconcile by invoice hash, and the invoice cannot be paid twice. Automatic reconciliation is not built yet. |
 | Key file exposure | The agent's wallet export is readable by other users, or is a mainnet export. | `loadAgentKey` checks permissions before reading. It refuses group or other access, another owner and a non-testnet export. |
-| Local receipt log tampering or loss | Someone edits, reorders or deletes the agent's local log to hide spending or replay an invoice. | Each line is hash-linked to the one before and re-verified on open. An edited, reordered or mid-truncated log is refused. The file is created mode 600, and a log writable by group or others is refused. Dropping lines from the end can't be seen locally. The log is a second layer only: the vault's on-chain receipts are the truth, and PR 5b reconciles the log against them. |
-| Seller misreports settlement (x402) | The seller says a payment failed although it landed, so the client's daily total runs low. | The client counts every signed payment as spent unless the reported failure means nothing moved. Timeouts and unknown outcomes count. The vault's own caps hold whatever the client believes. Reconciling against the chain is PR 5b. |
+| Local receipt log tampering or loss | Someone edits, reorders or deletes the agent's local log to hide spending or replay an invoice. | Each line is hash-linked to the one before and re-verified on open. An edited, reordered or mid-truncated log is refused. The file is created mode 600, and a log writable by group or others is refused. Dropping lines from the end can't be seen locally. The log is a second layer only: the vault's on-chain receipts are the truth. `claw-pay-export --log` reconciles the log against them. |
+| Seller misreports settlement (x402) | The seller says a payment failed although it landed, so the client's daily total runs low. | The client counts every signed payment as spent unless the reported failure means nothing moved. Timeouts and unknown outcomes count. The vault's own caps hold whatever the client believes. The client also takes the vault's own `spent_today` (from `view`) as a floor under its local total. `claw-pay-export --log` reports any payment that landed despite a reported failure. |
 | Compromised client process | Malware or a bug in the agent process tries to make the key sign something else. | The capped signer holds the key and signs only a sponsored `guard_vault.pay` from the agent, on its own vault, within the per-payment and energy caps and a 60 s expiry. The vault's caps and allowlist bound anything that is signed. Code running as the operator's user can still read the key file: see residual risk. |
 
 ## Open decisions
@@ -164,7 +175,8 @@ None at the moment. The badge and sponsored-fees questions were settled on 22 No
   - A vault payment is a contract update calling `guard_vault.pay`.
   - Decision 7 follows from this.
 - **Badge definition.** The definition used in decision 9 comes from Concordium's badge documentation as quoted in a third-party package's source; the docs site was not reachable from the build environment. Confirm it against `docs.concordium.com` on the operator box.
-- **x402 on a live node.** The `vault-exact` facilitator is tested only against an in-memory chain. Submitting sponsored V1 transactions, dry-running `pay` through `invokeInstance`, and reading finalized events must be confirmed on testnet from the operator box (PR 5).
+- **x402 on a live node.** The `vault-exact` facilitator is tested only against an in-memory chain. Submitting sponsored V1 transactions, dry-running `pay` through `invokeInstance`, and reading finalized events must be confirmed on testnet from the operator box. The adapter for this is in `packages/node-adapter` (PR 5b), and the live run is part of PR 5c.
+- **Testnet genesis hash.** The node guard expects testnet's genesis block hash to start with `4221332d34e1694168c2a0c0b3fd0f27`, the reference in the CAIP-2 id from the x402 Concordium spec. Confirm it against a testnet node on the operator box. If it is wrong, the guard fails closed and refuses to connect.
 - **Registry address.** The official CIS-8004 registry address on testnet must be confirmed on the operator box before deploy.
 
 ## What the verifier cannot check
