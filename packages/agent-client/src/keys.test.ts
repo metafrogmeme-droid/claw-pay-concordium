@@ -7,7 +7,7 @@ import { after, describe, test } from "node:test";
 import { ContractAddress, AccountAddress } from "@concordium/web-sdk";
 import { Transaction } from "@concordium/web-sdk/transactions";
 
-import { KeyFileError, loadAgentKey, type KeyFs } from "./keys.ts";
+import { KeyFileError, loadAgentKey, loadKeyFile, type KeyFs } from "./keys.ts";
 import { unsignedPay, walletExport } from "./test-helpers.ts";
 
 const UID = 1000;
@@ -88,6 +88,18 @@ describe("loadAgentKey", () => {
       assert.match(error.message, /not a Concordium wallet export/);
       assert.ok(!error.message.includes(marker));
     }
+  });
+});
+
+describe("loadKeyFile", () => {
+  test("applies the same rules under another variable, and names it in errors", () => {
+    const wallet = walletExport(0x06);
+    const env = { CLAW_PAY_OWNER_KEY_FILE: PATH };
+    const key = loadKeyFile(env, "CLAW_PAY_OWNER_KEY_FILE", { fs: fakeFs(wallet.json), uid: UID });
+    assert.ok(AccountAddress.equals(key.address, wallet.address));
+    assert.throws(() => loadKeyFile({}, "CLAW_PAY_OWNER_KEY_FILE", { fs: fakeFs(wallet.json), uid: UID }), /CLAW_PAY_OWNER_KEY_FILE is not set/);
+    assert.throws(() => loadKeyFile(env, "CLAW_PAY_OWNER_KEY_FILE", { fs: fakeFs(wallet.json, { mode: 0o640 }), uid: UID }), /must be 600/);
+    assert.throws(() => loadKeyFile(env, "CLAW_PAY_OWNER_KEY_FILE", { fs: fakeFs(walletExport(0x06, "mainnet").json), uid: UID }), /not a testnet wallet export/);
   });
 });
 

@@ -7,7 +7,8 @@
   "author": "HUMANOID-TRADERS",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./test-support": "./src/fake-node.ts"
   },
   "dependencies": {
     "@claw-pay-concordium/agent-client": "0.1.0",

@@ -1,6 +1,8 @@
 /**
  * Test-only: an in-memory stand-in for a Concordium node, returning objects
- * in the SDK's shapes. Nothing here opens a connection.
+ * in the SDK's shapes. Nothing here opens a connection. Exported as
+ * `@claw-pay-concordium/node-adapter/test-support` for other packages'
+ * offline tests; never use it in a real client.
  */
 
 import { readFileSync } from "node:fs";
@@ -139,6 +141,8 @@ export interface FakeNodeOptions {
   /** View bytes by block hash hex; "latest" for the last finalized block. */
   views?: Map<string, Uint8Array>;
   pay?: (invoker: AccountAddress.Type | undefined, message: Uint8Array) => InvokeContractResult;
+  /** Any entrypoint; checked first. Return undefined to fall through to view/pay. */
+  invoke?: (call: { method: string; invoker: AccountAddress.Type | undefined; message: Uint8Array; amount: bigint }) => InvokeContractResult | undefined;
   accounts?: Map<string, AccountInfo>;
   nextNonce?: bigint;
   blocks?: FakeBlock[];
@@ -172,10 +176,21 @@ export function fakeNode(options: FakeNodeOptions = {}): FakeNode {
       return Promise.resolve({ nonce: SequenceNumber.create(options.nextNonce ?? 1n), allFinal: true });
     },
     invokeContract: (
-      context: { method: { toString(): string }; invoker?: AccountAddress.Type; parameter?: { buffer: Uint8Array } },
+      context: { method: { toString(): string }; invoker?: AccountAddress.Type; parameter?: { buffer: Uint8Array }; amount?: { microCcdAmount: bigint } },
       block?: BlockHash.Type,
     ): Promise<InvokeContractResult> => {
       calls.push(`invokeContract:${context.method.toString()}`);
+      if (options.invoke !== undefined) {
+        const result = options.invoke({
+          method: context.method.toString(),
+          invoker: context.invoker,
+          message: context.parameter === undefined ? new Uint8Array() : new Uint8Array(context.parameter.buffer),
+          amount: context.amount?.microCcdAmount ?? 0n,
+        });
+        if (result !== undefined) {
+          return Promise.resolve(result);
+        }
+      }
       if (context.method.toString() === "guard_vault.view") {
         const key = block === undefined ? "latest" : BlockHash.toHexString(block);
         const bytes = options.views?.get(key) ?? options.views?.get("latest") ?? viewBytes();
